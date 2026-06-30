@@ -1,0 +1,20 @@
+[
+  {"secret":"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",                                                                                       "algorithm":"SHA1",  "digits":8,"period":30,"unix":59,          "expected":"94287082"},
+  {"secret":"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",                                                                                       "algorithm":"SHA1",  "digits":8,"period":30,"unix":1111111109, "expected":"07081804"},
+  {"secret":"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",                                                                                       "algorithm":"SHA1",  "digits":8,"period":30,"unix":1111111111, "expected":"14050471"},
+  {"secret":"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",                                                                                       "algorithm":"SHA1",  "digits":8,"period":30,"unix":1234567890, "expected":"89005924"},
+  {"secret":"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",                                                                                       "algorithm":"SHA1",  "digits":8,"period":30,"unix":2000000000, "expected":"69279037"},
+  {"secret":"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",                                                                                       "algorithm":"SHA1",  "digits":8,"period":30,"unix":20000000000,"expected":"65353130"},
+  {"secret":"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA====",                                                              "algorithm":"SHA256","digits":8,"period":30,"unix":59,          "expected":"46119246"},
+  {"secret":"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA====",                                                              "algorithm":"SHA256","digits":8,"period":30,"unix":1111111109, "expected":"68084774"},
+  {"secret":"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA====",                                                              "algorithm":"SHA256","digits":8,"period":30,"unix":1111111111, "expected":"67062674"},
+  {"secret":"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA====",                                                              "algorithm":"SHA256","digits":8,"period":30,"unix":1234567890, "expected":"91819424"},
+  {"secret":"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA====",                                                              "algorithm":"SHA256","digits":8,"period":30,"unix":2000000000, "expected":"90698825"},
+  {"secret":"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA====",                                                              "algorithm":"SHA256","digits":8,"period":30,"unix":20000000000,"expected":"77737706"},
+  {"secret":"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA=",             "algorithm":"SHA512","digits":8,"period":30,"unix":59,          "expected":"90693936"},
+  {"secret":"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA=",             "algorithm":"SHA512","digits":8,"period":30,"unix":1111111109, "expected":"25091201"},
+  {"secret":"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA=",             "algorithm":"SHA512","digits":8,"period":30,"unix":1111111111, "expected":"99943326"},
+  {"secret":"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA=",             "algorithm":"SHA512","digits":8,"period":30,"unix":1234567890, "expected":"93441116"},
+  {"secret":"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA=",             "algorithm":"SHA512","digits":8,"period":30,"unix":2000000000, "expected":"38618901"},
+  {"secret":"GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA=",             "algorithm":"SHA512","digits":8,"period":30,"unix":20000000000,"expected":"47863826"}
+]
