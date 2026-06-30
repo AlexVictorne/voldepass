@@ -1,0 +1,34 @@
+# бинари
+/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# артефакты сборки
+*.o
+*.a
+*.test
+coverage.out
+coverage.html
+
+# конфиги с секретами
+*.env
+.env.*
+config.local.json
+
+# локальное хранилище клиента
+*.vp
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# временные файлы
+*.tmp

@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    name: lint, test, integration
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      # ── Статический анализ ──────────────────────────────────────────────
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go mod verify
+        run: go mod verify
+
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      # ── Юнит-тесты ─────────────────────────────────────────────────────
+      - name: unit tests
+        run: go test -v -count=1 -race -coverprofile=coverage.out ./internal/... ./cmd/...
+
+      - name: coverage gate (≥70%)
+        run: |
+          TOTAL=$(go tool cover -func=coverage.out | grep "^total:" | awk '{gsub(/%/,""); print $3}')
+          echo "total coverage: ${TOTAL}%"
+          if [ $(echo "$TOTAL < 70" | bc -l) -eq 1 ]; then
+            echo "coverage ${TOTAL}% is below required 70%"
+            exit 1
+          fi
+
+      # ── Интеграционные тесты ────────────────────────────────────────────
+      - name: integration tests
+        run: go test -v -count=1 -tags=integration -race ./test/integration/...
+        env:
+          VOLDEPASS_DATABASE_URL: postgres://voldepass:voldepass@localhost:5432/voldepass?sslmode=disable
+
+      # ── Кросс-компиляция клиента ────────────────────────────────────────
+      - name: cross-compile client (linux/amd64)
+        run: GOOS=linux GOARCH=amd64 go build -o /dev/null ./cmd/client
+
+      - name: cross-compile client (darwin/amd64)
+        run: GOOS=darwin GOARCH=amd64 go build -o /dev/null ./cmd/client
+
+      - name: cross-compile client (windows/amd64)
+        run: GOOS=windows GOARCH=amd64 go build -o /dev/null ./cmd/client
