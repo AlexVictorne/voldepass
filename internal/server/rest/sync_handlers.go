@@ -1,0 +1,75 @@
+package rest
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+
+	"github.com/alexvictorne/voldepass/internal/domain"
+)
+
+// syncService — интерфейс, требуемый SyncHandlers. Реализуется service.SyncService.
+type syncService interface {
+	Pull(ctx context.Context, ownerID string, sinceVersion int64) (domain.SyncPullResponse, error)
+	Push(ctx context.Context, ownerID, idempotencyKey string, req domain.SyncPushRequest) (domain.SyncPushResponse, error)
+}
+
+// SyncHandlers — HTTP-хендлеры синхронизации записей (Pull/Push).
+type SyncHandlers struct {
+	svc syncService
+}
+
+// NewSyncHandlers создаёт хендлеры синхронизации поверх сервиса.
+func NewSyncHandlers(svc syncService) *SyncHandlers {
+	return &SyncHandlers{svc: svc}
+}
+
+// Pull обрабатывает GET /api/v1/sync?since=<version>.
+func (h *SyncHandlers) Pull(w http.ResponseWriter, r *http.Request) {
+	ownerID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	since, err := parseSinceVersion(r)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	resp, err := h.svc.Pull(r.Context(), ownerID, since)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// Push обрабатывает POST /api/v1/sync с заголовком Idempotency-Key.
+func (h *SyncHandlers) Push(w http.ResponseWriter, r *http.Request) {
+	ownerID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	idempotencyKey := r.Header.Get("Idempotency-Key")
+	if idempotencyKey == "" {
+		writeError(w, domain.ErrInvalidArgument)
+		return
+	}
+
+	var req domain.SyncPushRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, domain.ErrInvalidArgument)
+		return
+	}
+
+	resp, err := h.svc.Push(r.Context(), ownerID, idempotencyKey, req)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
