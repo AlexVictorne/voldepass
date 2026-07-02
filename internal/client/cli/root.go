@@ -55,6 +55,7 @@ func NewRootCmd(version, buildDate string) *cobra.Command {
 	root.AddCommand(newExportCmd(effectiveConfig, flags))
 	root.AddCommand(newImportCmd(effectiveConfig, flags))
 	root.AddCommand(newGenerateCmd())
+	root.AddCommand(newTUICmd(effectiveConfig))
 
 	return root
 }
