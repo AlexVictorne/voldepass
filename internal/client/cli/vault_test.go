@@ -28,6 +28,41 @@ func TestParseDataType(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestNewPayloadTarget(t *testing.T) {
+	assert.IsType(t, &domain.CredentialsPayload{}, newPayloadTarget(domain.DataTypeCredentials))
+	assert.IsType(t, &domain.TextPayload{}, newPayloadTarget(domain.DataTypeText))
+	assert.IsType(t, &domain.CardPayload{}, newPayloadTarget(domain.DataTypeCard))
+	assert.IsType(t, &domain.OTPPayload{}, newPayloadTarget(domain.DataTypeOTP))
+	assert.IsType(t, &map[string]any{}, newPayloadTarget(domain.DataTypeUnknown))
+}
+
+func TestBuildPayload(t *testing.T) {
+	f := payloadFlags{
+		login: "u", password: "p", content: "c",
+		number: "n", holder: "h", expiry: "e", cvv: "v",
+		secret: "s", issuer: "i", account: "a", algorithm: "SHA1", digits: 6, period: 30,
+	}
+
+	cred, err := buildPayload(domain.DataTypeCredentials, f)
+	require.NoError(t, err)
+	assert.Equal(t, domain.CredentialsPayload{Login: "u", Password: "p"}, cred)
+
+	text, err := buildPayload(domain.DataTypeText, f)
+	require.NoError(t, err)
+	assert.Equal(t, domain.TextPayload{Content: "c"}, text)
+
+	card, err := buildPayload(domain.DataTypeCard, f)
+	require.NoError(t, err)
+	assert.Equal(t, domain.CardPayload{Number: "n", Holder: "h", Expiry: "e", CVV: "v"}, card)
+
+	otp, err := buildPayload(domain.DataTypeOTP, f)
+	require.NoError(t, err)
+	assert.Equal(t, domain.OTPPayload{Secret: "s", Issuer: "i", Account: "a", Algorithm: "SHA1", Digits: 6, Period: 30}, otp)
+
+	_, err = buildPayload(domain.DataTypeBinary, f)
+	assert.Error(t, err, "binary type has no CLI payload builder yet")
+}
+
 func TestRunAddGetListDelete_Credentials(t *testing.T) {
 	srv := newLiveServer(t)
 	defer srv.Close()
