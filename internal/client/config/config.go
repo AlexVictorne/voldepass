@@ -16,6 +16,44 @@ import (
 	"github.com/caarlos0/env/v11"
 )
 
+// Duration — обёртка над time.Duration с поддержкой JSON-сериализации строками
+// вида "30s" (стандартный time.Duration умеет только наносекунды как число).
+type Duration struct{ time.Duration }
+
+// UnmarshalJSON реализует json.Unmarshaler для Duration.
+func (d *Duration) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		var n int64
+		if err2 := json.Unmarshal(b, &n); err2 != nil {
+			return err
+		}
+		d.Duration = time.Duration(n)
+		return nil
+	}
+	v, err := time.ParseDuration(s)
+	if err != nil {
+		return fmt.Errorf("parse duration %q: %w", s, err)
+	}
+	d.Duration = v
+	return nil
+}
+
+// MarshalJSON реализует json.Marshaler для Duration.
+func (d Duration) MarshalJSON() ([]byte, error) {
+	return json.Marshal(d.Duration.String())
+}
+
+// UnmarshalText реализует encoding.TextUnmarshaler для Duration (для caarlos0/env).
+func (d *Duration) UnmarshalText(b []byte) error {
+	v, err := time.ParseDuration(string(b))
+	if err != nil {
+		return fmt.Errorf("parse duration %q: %w", string(b), err)
+	}
+	d.Duration = v
+	return nil
+}
+
 // Config содержит все настраиваемые параметры клиента.
 type Config struct {
 	// ServerURL — базовый URL сервера Voldepass (например, https://localhost:8080).
@@ -27,7 +65,7 @@ type Config struct {
 	// TLSPinnedFingerprint — SHA-256 fingerprint сертификата сервера для pinning'а (опционально).
 	TLSPinnedFingerprint string `json:"tls_pinned_fingerprint" env:"VOLDEPASS_CLIENT_TLS_PINNED_FINGERPRINT"`
 	// RequestTimeout — таймаут на отдельный HTTP-запрос к серверу.
-	RequestTimeout time.Duration `json:"request_timeout" env:"VOLDEPASS_CLIENT_REQUEST_TIMEOUT"`
+	RequestTimeout Duration `json:"request_timeout" env:"VOLDEPASS_CLIENT_REQUEST_TIMEOUT"`
 	// MaxRetries — максимальное число повторных попыток при временных ошибках.
 	MaxRetries int `json:"max_retries" env:"VOLDEPASS_CLIENT_MAX_RETRIES"`
 	// LogLevel — уровень zerolog (debug, info, warn, error).
@@ -39,7 +77,7 @@ func Default() Config {
 	return Config{
 		ServerURL:      "http://localhost:8080",
 		StorageFile:    defaultStorageFile(),
-		RequestTimeout: 30 * time.Second,
+		RequestTimeout: Duration{30 * time.Second},
 		MaxRetries:     3,
 		LogLevel:       "info",
 	}
@@ -111,7 +149,7 @@ func applyFlags(cfg *Config, args []string) error {
 	fs.StringVar(&cfg.StorageFile, "storage-file", cfg.StorageFile, "path to local encrypted storage file")
 	fs.StringVar(&cfg.TLSCACert, "tls-ca-cert", cfg.TLSCACert, "path to CA certificate for server verification")
 	fs.StringVar(&cfg.TLSPinnedFingerprint, "tls-pinned-fingerprint", cfg.TLSPinnedFingerprint, "SHA-256 fingerprint of the server certificate for pinning")
-	fs.DurationVar(&cfg.RequestTimeout, "request-timeout", cfg.RequestTimeout, "HTTP request timeout")
+	fs.DurationVar(&cfg.RequestTimeout.Duration, "request-timeout", cfg.RequestTimeout.Duration, "HTTP request timeout")
 	fs.IntVar(&cfg.MaxRetries, "max-retries", cfg.MaxRetries, "maximum number of request retries")
 	fs.StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "log level (debug, info, warn, error)")
 
