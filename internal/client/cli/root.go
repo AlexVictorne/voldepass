@@ -49,6 +49,7 @@ func NewRootCmd(version, buildDate string) *cobra.Command {
 	root.AddCommand(newRegisterCmd(effectiveConfig, flags))
 	root.AddCommand(newLoginCmd(effectiveConfig, flags))
 	root.AddCommand(newLogoutCmd(effectiveConfig, flags))
+	root.AddCommand(newVaultCommands(effectiveConfig, flags)...)
 
 	return root
 }
