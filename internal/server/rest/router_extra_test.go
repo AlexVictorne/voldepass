@@ -12,6 +12,16 @@ import (
 	"github.com/alexvictorne/voldepass/internal/domain"
 )
 
+func TestRouter_SwaggerUIServed(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/swagger/index.html")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
 func TestRouter_RecordUpdate(t *testing.T) {
 	srv := newTestServer(t)
 	defer srv.Close()

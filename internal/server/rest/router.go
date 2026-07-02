@@ -5,6 +5,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
+
+	_ "github.com/alexvictorne/voldepass/api/openapi" // регистрирует сгенерированную swagger-спецификацию
 )
 
 // NewRouter собирает chi-роутер со всеми маршрутами Voldepass API.
@@ -15,6 +18,9 @@ func NewRouter(auth *AuthHandlers, vault *VaultHandlers, sync *SyncHandlers, jwt
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
 	r.Use(CheckAPIVersion)
+
+	// Swagger UI: смотреть контракт API на GET /swagger/index.html.
+	r.Get("/swagger/*", httpSwagger.WrapHandler)
 
 	r.Route("/api/v1", func(r chi.Router) {
 		// Публичные маршруты (не требуют access-токена).

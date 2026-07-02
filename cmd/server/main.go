@@ -3,6 +3,20 @@
 // Версия и дата сборки задаются через -ldflags при компиляции:
 //
 //	go build -ldflags "-X main.version=1.0.0 -X main.buildDate=2024-01-01" ./cmd/server
+//
+//	@title			Voldepass API
+//	@version		1.0
+//	@description	Zero-knowledge password manager server API. The server only ever handles
+//	@description	ciphertext: encryption/decryption happens exclusively on the client.
+//
+//	@license.name	MIT
+//
+//	@BasePath	/api/v1
+//
+//	@securityDefinitions.apikey	BearerAuth
+//	@in							header
+//	@name						Authorization
+//	@description				Access token issued by /login, sent as "Bearer <token>".
 package main
 
 import (

@@ -65,6 +65,7 @@ build-all-platforms:
 ## gen: кодогенерация (swag, mockery, stringer)
 gen:
 	go generate ./...
+	go run github.com/swaggo/swag/cmd/swag@v1.16.4 init -g cmd/server/main.go -o api/openapi --parseInternal --parseDependency
 
 ## lint: статический анализ (golangci-lint, go vet, govulncheck, go mod verify)
 lint:

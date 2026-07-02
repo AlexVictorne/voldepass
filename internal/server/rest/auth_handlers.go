@@ -35,7 +35,19 @@ type registerRequest struct {
 	WrappedDataKey []byte           `json:"wrapped_data_key"`
 }
 
-// Register обрабатывает POST /api/v1/register.
+// Register godoc
+//
+//	@Summary		Register a new user
+//	@Description	Creates a new user with a zero-knowledge crypto profile. The server never
+//	@Description	sees the master password or the derived encryption key.
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		registerRequest	true	"Registration payload"
+//	@Success		201		{object}	map[string]string
+//	@Failure		400		{object}	errorResponse
+//	@Failure		409		{object}	errorResponse	"login already taken"
+//	@Router			/register [post]
 func (h *AuthHandlers) Register(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -69,7 +81,19 @@ type challengeResponse struct {
 	WrappedDataKey []byte           `json:"wrapped_data_key"`
 }
 
-// Challenge обрабатывает POST /api/v1/login/challenge.
+// Challenge godoc
+//
+//	@Summary		Request a login challenge
+//	@Description	First phase of challenge-response login. Returns a one-time serverNonce
+//	@Description	(consumed on first use) plus the user's crypto profile needed to derive keys.
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		challengeRequest	true	"Login identifier"
+//	@Success		200		{object}	challengeResponse
+//	@Failure		400		{object}	errorResponse
+//	@Failure		404		{object}	errorResponse	"unknown login"
+//	@Router			/login/challenge [post]
 func (h *AuthHandlers) Challenge(w http.ResponseWriter, r *http.Request) {
 	var req challengeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -101,7 +125,20 @@ type tokenResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// Login обрабатывает POST /api/v1/login.
+// Login godoc
+//
+//	@Summary		Complete challenge-response login
+//	@Description	Second phase of login. authMsg = HMAC-SHA256(authKey, serverNonce), computed
+//	@Description	entirely client-side; the master password and authKey never cross the wire.
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		loginRequest	true	"Login and computed authMsg"
+//	@Success		200		{object}	tokenResponse
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse	"invalid authMsg or expired/consumed challenge"
+//	@Failure		429		{object}	errorResponse	"rate limited"
+//	@Router			/login [post]
 func (h *AuthHandlers) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -121,7 +158,19 @@ type refreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// Refresh обрабатывает POST /api/v1/refresh.
+// Refresh godoc
+//
+//	@Summary		Rotate the refresh token and issue a new access token
+//	@Description	The old refresh token is invalidated. Reusing an already-rotated token
+//	@Description	revokes the entire token family (theft detection).
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		refreshRequest	true	"Current refresh token"
+//	@Success		200		{object}	tokenResponse
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse	"expired, unknown, or reused token"
+//	@Router			/refresh [post]
 func (h *AuthHandlers) Refresh(w http.ResponseWriter, r *http.Request) {
 	var req refreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

@@ -54,7 +54,19 @@ func recordToResponse(r domain.Record) domain.RecordDTO {
 	}
 }
 
-// Create обрабатывает POST /api/v1/records.
+// Create godoc
+//
+//	@Summary		Create a vault record
+//	@Description	Stores an already-encrypted record. The server never decrypts ciphertext/meta.
+//	@Tags			records
+//	@Security		BearerAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		recordRequest	true	"Encrypted record"
+//	@Success		201		{object}	domain.RecordDTO
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Router			/records [post]
 func (h *VaultHandlers) Create(w http.ResponseWriter, r *http.Request) {
 	ownerID, err := userIDFromContext(r.Context())
 	if err != nil {
@@ -82,7 +94,17 @@ func (h *VaultHandlers) Create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, recordToResponse(rec))
 }
 
-// Get обрабатывает GET /api/v1/records/{id}.
+// Get godoc
+//
+//	@Summary		Get a vault record
+//	@Tags			records
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			id	path		string	true	"Record ID"
+//	@Success		200	{object}	domain.RecordDTO
+//	@Failure		401	{object}	errorResponse
+//	@Failure		404	{object}	errorResponse
+//	@Router			/records/{id} [get]
 func (h *VaultHandlers) Get(w http.ResponseWriter, r *http.Request) {
 	ownerID, err := userIDFromContext(r.Context())
 	if err != nil {
@@ -99,7 +121,19 @@ func (h *VaultHandlers) Get(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, recordToResponse(rec))
 }
 
-// List обрабатывает GET /api/v1/records.
+// List godoc
+//
+//	@Summary		List vault records
+//	@Description	Returns all records owned by the authenticated user, optionally filtered
+//	@Description	to those changed after the given version.
+//	@Tags			records
+//	@Security		BearerAuth
+//	@Produce		json
+//	@Param			since	query		int	false	"Return only records with version > since"
+//	@Success		200		{array}		domain.RecordDTO
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Router			/records [get]
 func (h *VaultHandlers) List(w http.ResponseWriter, r *http.Request) {
 	ownerID, err := userIDFromContext(r.Context())
 	if err != nil {
@@ -126,7 +160,22 @@ func (h *VaultHandlers) List(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// Update обрабатывает PUT /api/v1/records/{id}.
+// Update godoc
+//
+//	@Summary		Update a vault record
+//	@Description	Optimistic locking: base_version must match the current server version,
+//	@Description	otherwise the request fails with 409 Conflict.
+//	@Tags			records
+//	@Security		BearerAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string			true	"Record ID"
+//	@Param			request	body		recordRequest	true	"Updated encrypted record"
+//	@Success		200		{object}	domain.RecordDTO
+//	@Failure		400		{object}	errorResponse
+//	@Failure		401		{object}	errorResponse
+//	@Failure		409		{object}	errorResponse	"base_version is stale"
+//	@Router			/records/{id} [put]
 func (h *VaultHandlers) Update(w http.ResponseWriter, r *http.Request) {
 	ownerID, err := userIDFromContext(r.Context())
 	if err != nil {
@@ -156,7 +205,18 @@ func (h *VaultHandlers) Update(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, recordToResponse(rec))
 }
 
-// Delete обрабатывает DELETE /api/v1/records/{id}.
+// Delete godoc
+//
+//	@Summary		Delete a vault record
+//	@Description	Marks the record as a tombstone (soft delete) so the deletion propagates
+//	@Description	correctly to other devices during sync.
+//	@Tags			records
+//	@Security		BearerAuth
+//	@Param			id	path	string	true	"Record ID"
+//	@Success		204	"no content"
+//	@Failure		401	{object}	errorResponse
+//	@Failure		404	{object}	errorResponse
+//	@Router			/records/{id} [delete]
 func (h *VaultHandlers) Delete(w http.ResponseWriter, r *http.Request) {
 	ownerID, err := userIDFromContext(r.Context())
 	if err != nil {
