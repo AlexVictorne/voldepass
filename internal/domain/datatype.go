@@ -1,7 +1,8 @@
 package domain
 
 // DataType — тип хранимой записи.
-// go:generate stringer -type=DataType -linecomment
+//
+//go:generate go run golang.org/x/tools/cmd/stringer@latest -type=DataType -linecomment
 type DataType uint8
 
 const (

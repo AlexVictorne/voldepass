@@ -31,6 +31,23 @@ func TestDataType_Valid(t *testing.T) {
 	}
 }
 
+func TestDataType_String(t *testing.T) {
+	tests := []struct {
+		dt   domain.DataType
+		want string
+	}{
+		{domain.DataTypeUnknown, "unknown"},
+		{domain.DataTypeCredentials, "credentials"},
+		{domain.DataTypeText, "text"},
+		{domain.DataTypeBinary, "binary"},
+		{domain.DataTypeCard, "card"},
+		{domain.DataTypeOTP, "otp"},
+	}
+	for _, tc := range tests {
+		assert.Equal(t, tc.want, tc.dt.String())
+	}
+}
+
 // ── Payload JSON round-trip ───────────────────────────────────────────────────
 
 func TestCredentialsPayload_RoundTrip(t *testing.T) {
