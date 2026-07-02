@@ -121,10 +121,10 @@ func randomPermutation(n int) ([]int, error) {
 type StrengthScore int
 
 const (
-	StrengthVeryWeak  StrengthScore = 0
-	StrengthWeak      StrengthScore = 1
-	StrengthFair      StrengthScore = 2
-	StrengthStrong    StrengthScore = 3
+	StrengthVeryWeak   StrengthScore = 0
+	StrengthWeak       StrengthScore = 1
+	StrengthFair       StrengthScore = 2
+	StrengthStrong     StrengthScore = 3
 	StrengthVeryStrong StrengthScore = 4
 )
 
