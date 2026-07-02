@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/alexvictorne/voldepass/internal/client/storage"
+	"github.com/alexvictorne/voldepass/internal/domain"
 )
 
 // Session объединяет файловое хранилище и dataKey текущей сессии пользователя
@@ -25,6 +26,13 @@ func NewSession(store *storage.FileStore, dataKey []byte, syncer *Syncer) *Sessi
 // DataKey возвращает текущий dataKey сессии для использования VaultManager.
 func (s *Session) DataKey() []byte {
 	return s.dataKey
+}
+
+// Profile возвращает криптографический профиль, закэшированный в локальном хранилище
+// (используется для export/import бандла — см. internal/client/crypto.ExportData).
+func (s *Session) Profile() (kdfSalt []byte, kdfParams domain.KdfParams, wrappedDataKey []byte) {
+	snap := s.store.Snapshot()
+	return snap.KdfSalt, snap.KdfParams, snap.WrappedDataKey
 }
 
 // ClearTokens очищает сохранённые access/refresh токены (локальный logout).

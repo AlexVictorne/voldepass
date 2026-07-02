@@ -137,6 +137,16 @@ func (v *VaultManager) Get(id string, target any) (meta string, dto domain.Recor
 	return meta, rec.RecordDTO, nil
 }
 
+// Import добавляет уже зашифрованные тем же dataKey записи (например, из
+// ExportBundle) в локальное хранилище и помечает их Dirty для последующей
+// отправки на сервер — импортированные данные могли не существовать на сервере.
+func (v *VaultManager) Import(records []domain.RecordDTO) {
+	for _, dto := range records {
+		dto.BaseVersion = dto.Version
+		v.store.PutRecord(storage.StoredRecord{RecordDTO: dto, Dirty: true})
+	}
+}
+
 // List возвращает все локальные записи, не помеченные как удалённые.
 func (v *VaultManager) List() []domain.RecordDTO {
 	all := v.store.ListRecords()

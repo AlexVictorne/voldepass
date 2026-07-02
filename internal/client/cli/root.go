@@ -52,6 +52,9 @@ func NewRootCmd(version, buildDate string) *cobra.Command {
 	root.AddCommand(newVaultCommands(effectiveConfig, flags)...)
 	root.AddCommand(newSyncCmd(effectiveConfig, flags))
 	root.AddCommand(newOTPCmd(effectiveConfig, flags))
+	root.AddCommand(newExportCmd(effectiveConfig, flags))
+	root.AddCommand(newImportCmd(effectiveConfig, flags))
+	root.AddCommand(newGenerateCmd())
 
 	return root
 }
