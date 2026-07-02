@@ -27,6 +27,12 @@ func (s *Session) DataKey() []byte {
 	return s.dataKey
 }
 
+// ClearTokens очищает сохранённые access/refresh токены (локальный logout).
+// После этого следующий вход потребует полного challenge-response.
+func (s *Session) ClearTokens() {
+	s.store.SetTokens("", "")
+}
+
 // Close выполняет graceful shutdown: дожидается финальной синхронизации в пределах
 // дедлайна ctx (при наличии syncer), сбрасывает in-memory состояние в зашифрованный
 // файл и явно зануляет dataKey в памяти (best-effort — Go GC не гарантирует
@@ -45,6 +51,17 @@ func (s *Session) Close(ctx context.Context) error {
 		}
 	}
 
+	if err := s.store.Save(s.dataKey); err != nil {
+		return fmt.Errorf("close session: save storage: %w", err)
+	}
+	return nil
+}
+
+// CloseWithoutSync сохраняет состояние и зануляет dataKey, пропуская финальную
+// синхронизацию. Используется, например, после logout — когда токены уже очищены
+// и сетевой запрос заведомо провалится аутентификацией.
+func (s *Session) CloseWithoutSync() error {
+	defer zeroBytes(s.dataKey)
 	if err := s.store.Save(s.dataKey); err != nil {
 		return fmt.Errorf("close session: save storage: %w", err)
 	}

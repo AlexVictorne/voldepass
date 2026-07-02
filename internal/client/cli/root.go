@@ -46,7 +46,9 @@ func NewRootCmd(version, buildDate string) *cobra.Command {
 	}
 
 	root.AddCommand(newVersionCmd(version, buildDate))
-	_ = effectiveConfig // используется подкомандами, добавляемыми в последующих слоях CLI
+	root.AddCommand(newRegisterCmd(effectiveConfig, flags))
+	root.AddCommand(newLoginCmd(effectiveConfig, flags))
+	root.AddCommand(newLogoutCmd(effectiveConfig, flags))
 
 	return root
 }
