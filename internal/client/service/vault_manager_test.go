@@ -1,0 +1,121 @@
+package service_test
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/alexvictorne/voldepass/internal/client/crypto"
+	clientservice "github.com/alexvictorne/voldepass/internal/client/service"
+	"github.com/alexvictorne/voldepass/internal/client/storage"
+	"github.com/alexvictorne/voldepass/internal/domain"
+)
+
+func newTestDataKey(t *testing.T) []byte {
+	t.Helper()
+	key, err := crypto.GenerateDataKey()
+	require.NoError(t, err)
+	return key
+}
+
+func newVaultManager(t *testing.T) *clientservice.VaultManager {
+	t.Helper()
+	dataKey := newTestDataKey(t)
+	return clientservice.NewVaultManager(storage.NewStore(), dataKey)
+}
+
+func TestVaultManager_CreateAndGet(t *testing.T) {
+	v := newVaultManager(t)
+
+	payload := domain.CredentialsPayload{Login: "user@example.com", Password: "s3cr3t"}
+	dto, err := v.Create(domain.DataTypeCredentials, "github", payload)
+	require.NoError(t, err)
+	assert.NotEmpty(t, dto.ID)
+	assert.Equal(t, domain.DataTypeCredentials, dto.Type)
+
+	var got domain.CredentialsPayload
+	meta, gotDTO, err := v.Get(dto.ID, &got)
+	require.NoError(t, err)
+	assert.Equal(t, "github", meta)
+	assert.Equal(t, payload, got)
+	assert.Equal(t, dto.ID, gotDTO.ID)
+}
+
+func TestVaultManager_Create_NoMeta(t *testing.T) {
+	v := newVaultManager(t)
+	dto, err := v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "note"})
+	require.NoError(t, err)
+
+	var got domain.TextPayload
+	meta, _, err := v.Get(dto.ID, &got)
+	require.NoError(t, err)
+	assert.Empty(t, meta)
+	assert.Equal(t, "note", got.Content)
+}
+
+func TestVaultManager_Update(t *testing.T) {
+	v := newVaultManager(t)
+	dto, err := v.Create(domain.DataTypeText, "note-meta", domain.TextPayload{Content: "v1"})
+	require.NoError(t, err)
+
+	updated, err := v.Update(dto.ID, "note-meta-2", domain.TextPayload{Content: "v2"})
+	require.NoError(t, err)
+	assert.Equal(t, dto.ID, updated.ID)
+
+	var got domain.TextPayload
+	meta, _, err := v.Get(dto.ID, &got)
+	require.NoError(t, err)
+	assert.Equal(t, "v2", got.Content)
+	assert.Equal(t, "note-meta-2", meta)
+}
+
+func TestVaultManager_Update_NotFound(t *testing.T) {
+	v := newVaultManager(t)
+	_, err := v.Update("ghost", "m", domain.TextPayload{})
+	assert.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestVaultManager_Delete_Tombstone(t *testing.T) {
+	v := newVaultManager(t)
+	dto, _ := v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "x"})
+
+	require.NoError(t, v.Delete(dto.ID))
+
+	list := v.List()
+	assert.Empty(t, list, "deleted record must not appear in List")
+}
+
+func TestVaultManager_Delete_NotFound(t *testing.T) {
+	v := newVaultManager(t)
+	err := v.Delete("ghost")
+	assert.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestVaultManager_List(t *testing.T) {
+	v := newVaultManager(t)
+	v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "a"})
+	v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "b"})
+
+	list := v.List()
+	assert.Len(t, list, 2)
+}
+
+func TestVaultManager_Get_NotFound(t *testing.T) {
+	v := newVaultManager(t)
+	_, _, err := v.Get("ghost", nil)
+	assert.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestVaultManager_Get_WrongDataKeyFails(t *testing.T) {
+	store := storage.NewStore()
+	dataKey := newTestDataKey(t)
+	v := clientservice.NewVaultManager(store, dataKey)
+	dto, _ := v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "secret"})
+
+	otherKey := newTestDataKey(t)
+	v2 := clientservice.NewVaultManager(store, otherKey)
+	var got domain.TextPayload
+	_, _, err := v2.Get(dto.ID, &got)
+	assert.Error(t, err, "decrypting with a different dataKey must fail")
+}
