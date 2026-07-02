@@ -38,17 +38,19 @@ type recordRequest struct {
 	BaseVersion   int64           `json:"base_version,omitempty"`
 }
 
-func recordToResponse(r domain.Record) map[string]any {
-	return map[string]any{
-		"id":             r.ID,
-		"type":           r.Type,
-		"encrypted_meta": r.EncryptedMeta,
-		"meta_nonce":     r.MetaNonce,
-		"ciphertext":     r.Ciphertext,
-		"nonce":          r.Nonce,
-		"version":        r.Version,
-		"updated_at":     r.UpdatedAt,
-		"deleted":        r.Deleted,
+// recordToResponse конвертирует запись в RecordDTO — единый JSON-контракт,
+// общий с Sync API (см. sync_handlers.go), чтобы клиент использовал одну модель.
+func recordToResponse(r domain.Record) domain.RecordDTO {
+	return domain.RecordDTO{
+		ID:            r.ID,
+		Type:          r.Type,
+		EncryptedMeta: r.EncryptedMeta,
+		MetaNonce:     r.MetaNonce,
+		Ciphertext:    r.Ciphertext,
+		Nonce:         r.Nonce,
+		Version:       r.Version,
+		UpdatedAt:     r.UpdatedAt,
+		IsDeleted:     r.Deleted,
 	}
 }
 
@@ -117,7 +119,7 @@ func (h *VaultHandlers) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := make([]map[string]any, len(recs))
+	resp := make([]domain.RecordDTO, len(recs))
 	for i, rec := range recs {
 		resp[i] = recordToResponse(rec)
 	}
