@@ -1,7 +1,11 @@
 package rest
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,6 +15,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/alexvictorne/voldepass/internal/domain"
+	"github.com/alexvictorne/voldepass/internal/server/service"
 )
 
 type ctxKey int
@@ -65,6 +70,48 @@ func RequestLogger(log zerolog.Logger) func(http.Handler) http.Handler {
 				Dur("duration", time.Since(start)).
 				Str("request_id", middleware.GetReqID(r.Context())).
 				Msg("http request")
+		})
+	}
+}
+
+// LoginRateLimit возвращает middleware, отклоняющее запрос 429-м до вызова хендлера,
+// если LoginAttemptTracker.Allowed говорит, что логин уже превысил лимит попыток —
+// это позволяет отсечь превышающие лимит запросы максимально рано, ещё до разбора
+// challenge-response верификации в AuthService.Login. Инкремент/сброс счётчика по
+// результату верификации остаётся в AuthService (только он знает, удался ли вход) —
+// здесь только чтение уже накопленного состояния.
+//
+// Тело запроса читается один раз для извлечения "login" и восстанавливается для
+// хендлера. Если тело не парсится как JSON с полем login — не блокируем: невалидное
+// тело так и так будет отклонено самим хендлером (400), а не молча пропущено.
+func LoginRateLimit(tracker service.LoginAttemptTracker) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				writeError(w, domain.ErrInvalidArgument)
+				return
+			}
+			r.Body = io.NopCloser(bytes.NewReader(body))
+
+			var req struct {
+				Login string `json:"login"`
+			}
+			if err := json.Unmarshal(body, &req); err != nil || req.Login == "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			allowed, err := tracker.Allowed(r.Context(), req.Login)
+			if err != nil {
+				writeError(w, fmt.Errorf("check login rate limit: %w", err))
+				return
+			}
+			if !allowed {
+				writeError(w, domain.ErrRateLimited)
+				return
+			}
+			next.ServeHTTP(w, r)
 		})
 	}
 }

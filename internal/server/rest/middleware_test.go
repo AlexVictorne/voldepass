@@ -3,6 +3,7 @@ package rest
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/alexvictorne/voldepass/internal/domain"
 	"github.com/alexvictorne/voldepass/internal/server/auth"
+	"github.com/alexvictorne/voldepass/internal/server/storage/inmem"
 )
 
 func TestAuthMiddleware_ValidToken(t *testing.T) {
@@ -99,6 +101,71 @@ func TestCheckAPIVersion_IncompatibleMajor(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusUpgradeRequired, rec.Code)
+}
+
+func TestLoginRateLimit_AllowsUntilLimitExceeded(t *testing.T) {
+	tracker := inmem.NewLoginAttemptTracker(2, time.Minute)
+	var calls int
+	handler := LoginRateLimit(tracker)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	body := []byte(`{"login":"alice","auth_msg":"AAAA"}`)
+
+	// В пределах лимита (2 попытки) хендлер должен вызываться — Allowed() сам по себе
+	// не расходует лимит, только Inc() при неудачной попытке в AuthService.
+	for i := 0; i < 5; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/login", bytes.NewReader(body))
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusOK, rec.Code)
+	}
+	assert.Equal(t, 5, calls, "Allowed() alone must not block repeated requests without Inc()")
+
+	// Исчерпываем лимит через Inc(), как это делает AuthService при неудачном входе.
+	require.NoError(t, tracker.Inc(t.Context(), "alice"))
+	require.NoError(t, tracker.Inc(t.Context(), "alice"))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/login", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
+	assert.Equal(t, 5, calls, "handler must not be called once the limit is exceeded")
+}
+
+func TestLoginRateLimit_RestoresBodyForHandler(t *testing.T) {
+	tracker := inmem.NewLoginAttemptTracker(5, time.Minute)
+	var gotBody string
+	handler := LoginRateLimit(tracker)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	body := `{"login":"bob","auth_msg":"AAAA"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/login", bytes.NewReader([]byte(body)))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, body, gotBody, "request body read by the middleware must still reach the handler")
+}
+
+func TestLoginRateLimit_InvalidJSONPassesThroughToHandler(t *testing.T) {
+	tracker := inmem.NewLoginAttemptTracker(5, time.Minute)
+	var called bool
+	handler := LoginRateLimit(tracker)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/login", bytes.NewReader([]byte("not json")))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	assert.True(t, called, "malformed body must be left for the handler to reject, not silently swallowed")
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestRequestLogger_LogsMethodPathStatus(t *testing.T) {

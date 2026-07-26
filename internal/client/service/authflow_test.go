@@ -43,6 +43,7 @@ func newLiveServer(t *testing.T) *httptest.Server {
 		jwt,
 		nil,
 		zerolog.Nop(),
+		attempts,
 	)
 	return httptest.NewServer(router)
 }

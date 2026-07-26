@@ -65,6 +65,7 @@ func New(ctx context.Context, cfg config.Config, log zerolog.Logger) (*App, erro
 		jwt,
 		cfg.CORSAllowedOrigins,
 		log,
+		attempts,
 	)
 
 	return &App{

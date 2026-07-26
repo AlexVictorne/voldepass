@@ -5,11 +5,13 @@ package integration
 import (
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alexvictorne/voldepass/internal/domain"
+	"github.com/alexvictorne/voldepass/internal/server/storage/inmem"
 )
 
 // TestScenario_RegisterAddSyncSecondClient покрывает основной сквозной сценарий:
@@ -157,6 +159,38 @@ func TestScenario_RefreshRotationTheftDetection(t *testing.T) {
 	}, "")
 	defer replayResp.Body.Close()
 	assert.Equal(t, http.StatusUnauthorized, replayResp.StatusCode)
+}
+
+// TestScenario_LoginRateLimit проверяет rate-limit на /login сквозь весь HTTP-стек:
+// после исчерпания лимита неудачных попыток даже валидный authMsg отклоняется 429,
+// а не 401 — то есть блокировка срабатывает раньше challenge-response верификации.
+func TestScenario_LoginRateLimit(t *testing.T) {
+	const maxAttempts = 3
+	srv := newTestServerWithLoginLimit(t, inmem.NewLoginAttemptTracker(maxAttempts, time.Hour))
+	login := uniqueLogin(t)
+	authKey := registerUserOnly(t, srv, login, "master-password")
+
+	// Тратим лимит неудачными попытками (неверный authMsg).
+	for i := 0; i < maxAttempts; i++ {
+		_, nonce := challengeExistingUser(t, srv, login, "master-password")
+		wrongMsg := hmacAuthMsg(authKey, nonce+"-tampered")
+		resp := doJSON(t, contextBg(), http.MethodPost, srv.URL+"/api/v1/login", map[string]any{
+			"login": login, "auth_msg": wrongMsg,
+		}, "")
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode, "attempt %d must fail auth, not be rate-limited yet", i+1)
+		resp.Body.Close()
+	}
+
+	// Лимит исчерпан: даже корректный authMsg должен быть отклонён 429 —
+	// LoginRateLimit-middleware блокирует запрос раньше, чем он дойдёт до
+	// challenge-response верификации в AuthService.Login.
+	correctAuthKey, nonce := challengeExistingUser(t, srv, login, "master-password")
+	correctMsg := hmacAuthMsg(correctAuthKey, nonce)
+	resp := doJSON(t, contextBg(), http.MethodPost, srv.URL+"/api/v1/login", map[string]any{
+		"login": login, "auth_msg": correctMsg,
+	}, "")
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
 }
 
 // TestScenario_IncompatibleAPIVersion проверяет 426 Upgrade Required при

@@ -10,6 +10,7 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 
 	_ "github.com/alexvictorne/voldepass/api/openapi" // регистрирует сгенерированную swagger-спецификацию
+	"github.com/alexvictorne/voldepass/internal/server/service"
 )
 
 // NewRouter собирает chi-роутер со всеми маршрутами Voldepass API.
@@ -18,7 +19,9 @@ import (
 // пустой список отключает CORS-заголовки (браузерные клиенты не смогут делать запросы
 // с других origin — нормально для CLI/TUI-клиентов, не затрагивающих браузер).
 // log используется RequestLogger для структурного логирования каждого запроса.
-func NewRouter(auth *AuthHandlers, vault *VaultHandlers, sync *SyncHandlers, jwt jwtParser, corsAllowedOrigins []string, log zerolog.Logger) http.Handler {
+// loginAttempts используется LoginRateLimit-middleware на /login, чтобы отклонять
+// превысившие лимит запросы транспортным слоем, не доходя до AuthService.Login.
+func NewRouter(auth *AuthHandlers, vault *VaultHandlers, sync *SyncHandlers, jwt jwtParser, corsAllowedOrigins []string, log zerolog.Logger, loginAttempts service.LoginAttemptTracker) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -42,7 +45,7 @@ func NewRouter(auth *AuthHandlers, vault *VaultHandlers, sync *SyncHandlers, jwt
 		// Публичные маршруты (не требуют access-токена).
 		r.Post("/register", auth.Register)
 		r.Post("/login/challenge", auth.Challenge)
-		r.Post("/login", auth.Login)
+		r.With(LoginRateLimit(loginAttempts)).Post("/login", auth.Login)
 		r.Post("/refresh", auth.Refresh)
 
 		// Защищённые маршруты.

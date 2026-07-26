@@ -52,6 +52,7 @@ func newTestServerWithCORS(t *testing.T, corsAllowedOrigins []string) *httptest.
 		jwt,
 		corsAllowedOrigins,
 		zerolog.Nop(),
+		attempts,
 	)
 	return httptest.NewServer(router)
 }

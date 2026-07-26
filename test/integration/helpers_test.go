@@ -41,6 +41,13 @@ type testServer struct {
 // newTestServer собирает полный REST-сервер поверх PostgreSQL, поднятого в TestMain.
 func newTestServer(t *testing.T) *testServer {
 	t.Helper()
+	return newTestServerWithLoginLimit(t, newLoginAttemptTrackerNoLimit())
+}
+
+// newTestServerWithLoginLimit — как newTestServer, но с настраиваемым LoginAttemptTracker
+// (используется сценарием rate-limit, где нужен реально маленький лимит).
+func newTestServerWithLoginLimit(t *testing.T, attempts service.LoginAttemptTracker) *testServer {
+	t.Helper()
 
 	users := postgres.NewUserRepository(testPool)
 	records := postgres.NewRecordRepository(testPool)
@@ -50,8 +57,6 @@ func newTestServer(t *testing.T) *testServer {
 	jwt := serverauth.NewJWTManager([]byte("integration-test-secret-32-bytes"), 15*time.Minute)
 	challenges := serverauth.NewChallengeStore(time.Minute)
 	refresh := serverauth.NewRefreshTokenService(refreshTokens, time.Hour)
-	// Лимит попыток намеренно высокий — эти тесты не про rate-limit ошибочного логина.
-	attempts := newLoginAttemptTrackerNoLimit()
 
 	authSvc := service.NewAuthService(users, challenges, jwt, refresh, attempts)
 	vaultSvc := service.NewVaultService(records)
@@ -64,6 +69,7 @@ func newTestServer(t *testing.T) *testServer {
 		jwt,
 		nil,
 		zerolog.Nop(),
+		attempts,
 	)
 	return &testServer{Server: httptest.NewServer(router)}
 }
