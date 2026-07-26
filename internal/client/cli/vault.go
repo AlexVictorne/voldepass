@@ -125,7 +125,7 @@ func runList(ctx context.Context, cfg clientcfg.Config, login, password string, 
 	}
 
 	for _, dto := range b.vault.List() {
-		meta, _, err := b.vault.Get(dto.ID, nil)
+		meta, err := b.vault.GetMeta(dto.ID)
 		if err != nil {
 			meta = "<decrypt error>"
 		}

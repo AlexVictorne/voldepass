@@ -138,6 +138,25 @@ func (v *VaultManager) Get(id string, target any) (meta string, dto domain.Recor
 	return meta, rec.RecordDTO, nil
 }
 
+// GetMeta возвращает только расшифрованную meta-метку записи, не трогая payload —
+// дешевле, чем Get(id, nil), и не требует, чтобы Ciphertext уже был расшифровываем
+// (используется там, где нужен только человекочитаемый лейбл записи, например
+// список в TUI/CLI).
+func (v *VaultManager) GetMeta(id string) (string, error) {
+	rec, ok := v.store.GetRecord(id)
+	if !ok {
+		return "", fmt.Errorf("%w: record %s", domain.ErrNotFound, id)
+	}
+	if len(rec.EncryptedMeta) == 0 {
+		return "", nil
+	}
+	metaBytes, err := crypto.Decrypt(v.dataKey, rec.EncryptedMeta, rec.MetaNonce)
+	if err != nil {
+		return "", fmt.Errorf("decrypt meta: %w", err)
+	}
+	return string(metaBytes), nil
+}
+
 // Import добавляет уже зашифрованные тем же dataKey записи (например, из
 // ExportBundle) в локальное хранилище и помечает их Dirty для последующей
 // отправки на сервер — импортированные данные могли не существовать на сервере.

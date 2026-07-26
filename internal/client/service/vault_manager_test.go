@@ -54,6 +54,55 @@ func TestVaultManager_Create_NoMeta(t *testing.T) {
 	assert.Equal(t, "note", got.Content)
 }
 
+func TestVaultManager_GetMeta(t *testing.T) {
+	v := newVaultManager(t)
+	dto, err := v.Create(domain.DataTypeCredentials, "github", domain.CredentialsPayload{Login: "a", Password: "b"})
+	require.NoError(t, err)
+
+	meta, err := v.GetMeta(dto.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "github", meta)
+}
+
+func TestVaultManager_GetMeta_NoMeta(t *testing.T) {
+	v := newVaultManager(t)
+	dto, err := v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "note"})
+	require.NoError(t, err)
+
+	meta, err := v.GetMeta(dto.ID)
+	require.NoError(t, err)
+	assert.Empty(t, meta)
+}
+
+func TestVaultManager_GetMeta_NotFound(t *testing.T) {
+	v := newVaultManager(t)
+	_, err := v.GetMeta("ghost")
+	assert.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestVaultManager_GetMeta_DoesNotRequireDecryptablePayload(t *testing.T) {
+	// GetMeta не должен трогать Ciphertext вовсе — проверяем, что даже если
+	// payload испорчен/нерасшифровываем, GetMeta по-прежнему отдаёт meta.
+	store := storage.NewStore()
+	v := clientservice.NewVaultManager(store, newTestDataKey(t))
+	dto, err := v.Create(domain.DataTypeText, "label", domain.TextPayload{Content: "note"})
+	require.NoError(t, err)
+
+	rec, ok := store.GetRecord(dto.ID)
+	require.True(t, ok)
+	rec.Ciphertext = []byte("not-valid-ciphertext")
+	rec.Nonce = make([]byte, 12) // корректная длина nonce, но заведомо не тот, что шифровал payload
+	store.PutRecord(rec)
+
+	// Payload действительно теперь не расшифровывается, чтобы убедиться, что тест не тривиален.
+	_, _, err = v.Get(dto.ID, &domain.TextPayload{})
+	require.Error(t, err)
+
+	meta, err := v.GetMeta(dto.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "label", meta)
+}
+
 func TestVaultManager_Update(t *testing.T) {
 	v := newVaultManager(t)
 	dto, err := v.Create(domain.DataTypeText, "note-meta", domain.TextPayload{Content: "v1"})

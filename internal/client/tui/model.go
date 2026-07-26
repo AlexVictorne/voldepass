@@ -174,9 +174,10 @@ type Model struct {
 	syncer  *service.Syncer
 	syncing bool
 
-	records    []domain.RecordDTO
-	cursor     int
-	lastSyncAt time.Time
+	records      []domain.RecordDTO
+	recordLabels []string
+	cursor       int
+	lastSyncAt   time.Time
 
 	detailMeta    string
 	detailPayload string
@@ -255,7 +256,7 @@ func (m *Model) handleSessionResult(msg sessionResultMsg) (tea.Model, tea.Cmd) {
 	m.session = msg.session
 	m.vault = msg.vault
 	m.syncer = msg.syncer
-	m.records = msg.vault.List()
+	m.refreshRecords()
 	m.lastSyncAt = msg.vault.LastSyncAt()
 	m.screen = screenList
 	return m, nil
@@ -270,7 +271,7 @@ func (m *Model) handleSyncResult(msg syncResultMsg) (tea.Model, tea.Cmd) {
 	}
 	m.err = nil
 	m.lastSyncAt = m.vault.LastSyncAt()
-	m.records = m.vault.List()
+	m.refreshRecords()
 	if m.cursor >= len(m.records) {
 		m.cursor = max(len(m.records)-1, 0)
 	}
@@ -457,13 +458,30 @@ func (m *Model) submitAddForm() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.err = nil
-	m.records = m.vault.List()
+	m.refreshRecords()
 	m.addFields = nil
 	m.screen = screenList
 	return m, nil
 }
 
 // openDetail расшифровывает выбранную запись для отображения на экране деталей.
+// refreshRecords перечитывает список записей из VaultManager и расшифровывает
+// метку (meta) для каждой — один раз здесь, а не при каждом View(), чтобы
+// список не отображал непонятные UUID и не расшифровывал их на каждый кадр.
+// Запись без meta или с ошибкой расшифровки отображается по типу+ID.
+func (m *Model) refreshRecords() {
+	m.records = m.vault.List()
+	m.recordLabels = make([]string, len(m.records))
+	for i, dto := range m.records {
+		meta, err := m.vault.GetMeta(dto.ID)
+		if err != nil || meta == "" {
+			m.recordLabels[i] = fmt.Sprintf("%v: %s", dto.Type, dto.ID)
+			continue
+		}
+		m.recordLabels[i] = fmt.Sprintf("%v: %s", dto.Type, meta)
+	}
+}
+
 func (m *Model) openDetail(dto domain.RecordDTO) {
 	target := newPayloadTarget(dto.Type)
 	meta, _, err := m.vault.Get(dto.ID, target)
@@ -560,12 +578,12 @@ func (m *Model) viewList() string {
 	if len(m.records) == 0 {
 		s += "(no records)\n"
 	}
-	for i, r := range m.records {
+	for i := range m.records {
 		cursor := "  "
 		if i == m.cursor {
 			cursor = "> "
 		}
-		s += fmt.Sprintf("%s%s\n", cursor, r.ID)
+		s += fmt.Sprintf("%s%s\n", cursor, m.recordLabels[i])
 	}
 	if m.syncing {
 		s += "\nsyncing...\n"

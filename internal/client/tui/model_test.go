@@ -538,3 +538,42 @@ func TestModel_List_SyncError_DoesNotUpdateLastSyncTime(t *testing.T) {
 	assert.True(t, m.lastSyncAt.IsZero(), "failed sync must not record a timestamp")
 	assert.Contains(t, m.viewList(), "not synced yet")
 }
+
+func TestModel_List_ShowsMetaLabelNotRawID(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
+		v.Create(domain.DataTypeCredentials, "gmail", domain.CredentialsPayload{Login: "a", Password: "b"})
+	})
+	m = loginViaEnter(t, m)
+
+	require.Len(t, m.recordLabels, 1)
+	assert.Contains(t, m.recordLabels[0], "gmail")
+	assert.NotContains(t, m.recordLabels[0], m.records[0].ID, "list must not show the raw record UUID when a meta label is available")
+
+	view := m.viewList()
+	assert.Contains(t, view, "gmail")
+	assert.NotContains(t, view, m.records[0].ID)
+}
+
+func TestModel_List_FallsBackToIDWhenMetaEmpty(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
+		v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "no meta"})
+	})
+	m = loginViaEnter(t, m)
+
+	require.Len(t, m.recordLabels, 1)
+	assert.Contains(t, m.recordLabels[0], m.records[0].ID, "must fall back to the record ID when there is no meta label")
+}
+
+func TestModel_AddForm_NewRecordGetsMetaLabelInList(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, nil)
+	m = loginViaEnter(t, m)
+	m = openAddForm(t, m, 1) // Text
+
+	m = fillAndSubmitAddForm(m, "my-note", "hello world")
+
+	require.Len(t, m.recordLabels, 1)
+	assert.Contains(t, m.recordLabels[0], "my-note")
+}
