@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/caarlos0/env/v11"
@@ -91,6 +92,9 @@ type Config struct {
 	TLSKeyFile string `json:"tls_key_file" env:"VOLDEPASS_TLS_KEY_FILE"`
 	// LogLevel — уровень zerolog (debug, info, warn, error).
 	LogLevel string `json:"log_level" env:"VOLDEPASS_LOG_LEVEL"`
+	// CORSAllowedOrigins — список разрешённых Origin для CORS (например,
+	// адрес веб/браузерного клиента). "*" разрешает любой origin (только для dev).
+	CORSAllowedOrigins []string `json:"cors_allowed_origins" env:"VOLDEPASS_CORS_ALLOWED_ORIGINS"`
 }
 
 // dur — вспомогательная функция для инициализации Duration из time.Duration.
@@ -100,17 +104,18 @@ func dur(d time.Duration) Duration { return Duration{d} }
 func Default() Config {
 	// DatabaseURL below is a local dev default matching docker-compose.yml, not a real secret.
 	return Config{ //nolint:gosec
-		Address:          ":8080",
-		DatabaseURL:      "postgres://voldepass:voldepass@localhost:5432/voldepass?sslmode=disable",
-		JWTSecret:        "",
-		AccessTokenTTL:   dur(15 * time.Minute),
-		RefreshTokenTTL:  dur(30 * 24 * time.Hour),
-		ChallengeTTL:     dur(2 * time.Minute),
-		IdempotencyTTL:   dur(24 * time.Hour),
-		LoginMaxAttempts: 5,
-		LoginWindow:      dur(15 * time.Minute),
-		TLSEnabled:       false,
-		LogLevel:         "info",
+		Address:            ":8080",
+		DatabaseURL:        "postgres://voldepass:voldepass@localhost:5432/voldepass?sslmode=disable",
+		JWTSecret:          "",
+		AccessTokenTTL:     dur(15 * time.Minute),
+		RefreshTokenTTL:    dur(30 * 24 * time.Hour),
+		ChallengeTTL:       dur(2 * time.Minute),
+		IdempotencyTTL:     dur(24 * time.Hour),
+		LoginMaxAttempts:   5,
+		LoginWindow:        dur(15 * time.Minute),
+		TLSEnabled:         false,
+		LogLevel:           "info",
+		CORSAllowedOrigins: []string{"*"},
 	}
 }
 
@@ -186,9 +191,24 @@ func applyFlags(cfg *Config, args []string) error {
 	fs.StringVar(&cfg.TLSCertFile, "tls-cert-file", cfg.TLSCertFile, "path to TLS certificate file")
 	fs.StringVar(&cfg.TLSKeyFile, "tls-key-file", cfg.TLSKeyFile, "path to TLS private key file")
 	fs.StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "log level (debug, info, warn, error)")
+	corsOrigins := strings.Join(cfg.CORSAllowedOrigins, ",")
+	fs.StringVar(&corsOrigins, "cors-allowed-origins", corsOrigins, "comma-separated list of allowed CORS origins (\"*\" for any)")
 
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("parse flags: %w", err)
 	}
+	cfg.CORSAllowedOrigins = splitCSV(corsOrigins)
 	return nil
+}
+
+// splitCSV разбивает строку по запятым, отбрасывая пустые элементы и
+// окружающие пробелы (для флагов/env вида "https://a.com,https://b.com").
+func splitCSV(s string) []string {
+	var result []string
+	for _, part := range strings.Split(s, ",") {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }

@@ -43,6 +43,7 @@ func newLiveServer(t *testing.T) *httptest.Server {
 		rest.NewVaultHandlers(vaultSvc),
 		rest.NewSyncHandlers(syncSvc),
 		jwt,
+		nil,
 	)
 	return httptest.NewServer(router)
 }

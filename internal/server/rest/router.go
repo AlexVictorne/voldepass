@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 
 	_ "github.com/alexvictorne/voldepass/api/openapi" // регистрирует сгенерированную swagger-спецификацию
@@ -12,11 +13,23 @@ import (
 
 // NewRouter собирает chi-роутер со всеми маршрутами Voldepass API.
 // jwt используется для AuthMiddleware на защищённых маршрутах.
-func NewRouter(auth *AuthHandlers, vault *VaultHandlers, sync *SyncHandlers, jwt jwtParser) http.Handler {
+// corsAllowedOrigins — разрешённые Origin для CORS (см. config.Config.CORSAllowedOrigins);
+// пустой список отключает CORS-заголовки (браузерные клиенты не смогут делать запросы
+// с других origin — нормально для CLI/TUI-клиентов, не затрагивающих браузер).
+func NewRouter(auth *AuthHandlers, vault *VaultHandlers, sync *SyncHandlers, jwt jwtParser, corsAllowedOrigins []string) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
+	if len(corsAllowedOrigins) > 0 {
+		r.Use(cors.Handler(cors.Options{
+			AllowedOrigins:   corsAllowedOrigins,
+			AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete},
+			AllowedHeaders:   []string{"Content-Type", "Authorization", "Idempotency-Key", "X-API-Version"},
+			AllowCredentials: false,
+			MaxAge:           300,
+		}))
+	}
 	r.Use(CheckAPIVersion)
 
 	// Swagger UI: смотреть контракт API на GET /swagger/index.html.

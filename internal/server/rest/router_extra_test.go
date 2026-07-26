@@ -192,3 +192,51 @@ func loginAndGetRefreshToken(t *testing.T, baseURL, login, password string) stri
 	require.NoError(t, json.NewDecoder(loginResp.Body).Decode(&tokens))
 	return tokens.RefreshToken
 }
+
+func TestRouter_CORS_AllowedOriginReflectedInPreflight(t *testing.T) {
+	srv := newTestServerWithCORS(t, []string{"https://app.example.com"})
+	defer srv.Close()
+
+	req, err := http.NewRequest(http.MethodOptions, srv.URL+"/api/v1/records", nil)
+	require.NoError(t, err)
+	req.Header.Set("Origin", "https://app.example.com")
+	req.Header.Set("Access-Control-Request-Method", http.MethodGet)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, "https://app.example.com", resp.Header.Get("Access-Control-Allow-Origin"))
+}
+
+func TestRouter_CORS_DisallowedOriginNotReflected(t *testing.T) {
+	srv := newTestServerWithCORS(t, []string{"https://app.example.com"})
+	defer srv.Close()
+
+	req, err := http.NewRequest(http.MethodOptions, srv.URL+"/api/v1/records", nil)
+	require.NoError(t, err)
+	req.Header.Set("Origin", "https://evil.example.com")
+	req.Header.Set("Access-Control-Request-Method", http.MethodGet)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Empty(t, resp.Header.Get("Access-Control-Allow-Origin"), "an origin not on the allowlist must not be reflected back")
+}
+
+func TestRouter_CORS_DisabledByDefault(t *testing.T) {
+	srv := newTestServer(t) // CORS отключён (corsAllowedOrigins == nil)
+	defer srv.Close()
+
+	req, err := http.NewRequest(http.MethodOptions, srv.URL+"/api/v1/records", nil)
+	require.NoError(t, err)
+	req.Header.Set("Origin", "https://app.example.com")
+	req.Header.Set("Access-Control-Request-Method", http.MethodGet)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Empty(t, resp.Header.Get("Access-Control-Allow-Origin"), "CORS must be off entirely when no origins are configured")
+}

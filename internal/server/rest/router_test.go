@@ -21,8 +21,14 @@ import (
 
 var fastParams = domain.KdfParams{Time: 1, Memory: 16 * 1024, Threads: 1, KeyLen: 32}
 
-// newTestServer собирает полный REST-сервер поверх in-memory зависимостей.
+// newTestServer собирает полный REST-сервер поверх in-memory зависимостей (CORS отключён).
 func newTestServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	return newTestServerWithCORS(t, nil)
+}
+
+// newTestServerWithCORS — как newTestServer, но с настраиваемым списком разрешённых CORS-origin.
+func newTestServerWithCORS(t *testing.T, corsAllowedOrigins []string) *httptest.Server {
 	t.Helper()
 
 	users := inmem.NewUserRepository()
@@ -43,6 +49,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 		rest.NewVaultHandlers(vaultSvc),
 		rest.NewSyncHandlers(syncSvc),
 		jwt,
+		corsAllowedOrigins,
 	)
 	return httptest.NewServer(router)
 }

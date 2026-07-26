@@ -61,6 +61,7 @@ func newTestServer(t *testing.T) *testServer {
 		rest.NewVaultHandlers(vaultSvc),
 		rest.NewSyncHandlers(syncSvc),
 		jwt,
+		nil,
 	)
 	return &testServer{Server: httptest.NewServer(router)}
 }

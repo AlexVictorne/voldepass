@@ -88,6 +88,46 @@ func TestLoad_FlagOverridesEnv(t *testing.T) {
 	assert.Equal(t, ":6666", cfg.Address)
 }
 
+// TestLoad_CORSAllowedOrigins_Default проверяет дефолтное значение (разрешено всё, для dev).
+func TestLoad_CORSAllowedOrigins_Default(t *testing.T) {
+	clearEnv(t)
+
+	cfg, err := config.Load(nil)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"*"}, cfg.CORSAllowedOrigins)
+}
+
+// TestLoad_CORSAllowedOrigins_Env проверяет разбор списка origin из env (через запятую).
+func TestLoad_CORSAllowedOrigins_Env(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("VOLDEPASS_CORS_ALLOWED_ORIGINS", "https://a.example.com,https://b.example.com")
+
+	cfg, err := config.Load(nil)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"https://a.example.com", "https://b.example.com"}, cfg.CORSAllowedOrigins)
+}
+
+// TestLoad_CORSAllowedOrigins_Flag проверяет разбор списка origin из флага и что флаг
+// побеждает env, как и остальные настройки.
+func TestLoad_CORSAllowedOrigins_Flag(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("VOLDEPASS_CORS_ALLOWED_ORIGINS", "https://env.example.com")
+
+	cfg, err := config.Load([]string{"-cors-allowed-origins", "https://flag-a.example.com, https://flag-b.example.com"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"https://flag-a.example.com", "https://flag-b.example.com"}, cfg.CORSAllowedOrigins)
+}
+
+// TestLoad_CORSAllowedOrigins_EmptyDisablesCORS проверяет, что явно пустой список
+// (например, "" через флаг) отключает CORS полностью, а не оставляет дефолтное "*".
+func TestLoad_CORSAllowedOrigins_EmptyDisablesCORS(t *testing.T) {
+	clearEnv(t)
+
+	cfg, err := config.Load([]string{"-cors-allowed-origins", ""})
+	require.NoError(t, err)
+	assert.Empty(t, cfg.CORSAllowedOrigins)
+}
+
 // TestLoad_AllSourcesPriority проверяет полный приоритет: default < json < env < flag.
 func TestLoad_AllSourcesPriority(t *testing.T) {
 	clearEnv(t)

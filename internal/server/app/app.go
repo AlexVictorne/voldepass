@@ -63,6 +63,7 @@ func New(ctx context.Context, cfg config.Config, log zerolog.Logger) (*App, erro
 		rest.NewVaultHandlers(vaultSvc),
 		rest.NewSyncHandlers(syncSvc),
 		jwt,
+		cfg.CORSAllowedOrigins,
 	)
 
 	return &App{
