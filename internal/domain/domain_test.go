@@ -163,7 +163,7 @@ func TestDefaultKdfParams(t *testing.T) {
 	p := domain.DefaultKdfParams()
 	assert.Equal(t, uint32(2), p.Time)
 	assert.Equal(t, uint32(64*1024), p.Memory)
-	assert.Equal(t, uint8(4), p.Threads)
+	assert.Equal(t, uint8(1), p.Threads)
 	assert.Equal(t, uint32(32), p.KeyLen)
 }
 
