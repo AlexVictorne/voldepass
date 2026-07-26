@@ -314,3 +314,188 @@ func TestModel_List_SyncIgnoredWhileSyncing(t *testing.T) {
 	assert.Nil(t, cmd2, "must not start a second sync while one is in flight")
 	assert.True(t, m.syncing)
 }
+
+// sendRunes отправляет строку как последовательность tea.KeyRunes сообщений.
+func sendRunes(m *Model, s string) *Model {
+	for _, r := range s {
+		updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		m = updated.(*Model)
+	}
+	return m
+}
+
+func openAddForm(t *testing.T, m *Model, typeCursor int) *Model {
+	t.Helper()
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	m = updated.(*Model)
+	require.Equal(t, screenAddType, m.screen)
+
+	for i := 0; i < typeCursor; i++ {
+		updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+		m = updated.(*Model)
+	}
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(*Model)
+	require.Equal(t, screenAddForm, m.screen)
+	return m
+}
+
+// fillAndSubmitAddForm печатает values в текущий сфокусированный field, переходя
+// к следующему клавишей Enter, и на последнем поле сабмитит форму.
+func fillAndSubmitAddForm(m *Model, values ...string) *Model {
+	for i, v := range values {
+		m = sendRunes(m, v)
+		key := tea.KeyEnter
+		updated, _ := m.Update(tea.KeyMsg{Type: key})
+		m = updated.(*Model)
+		_ = i
+	}
+	return m
+}
+
+func TestModel_AddType_NavigatesAllFiveTypes(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, nil)
+	m = loginViaEnter(t, m)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	m = updated.(*Model)
+	require.Equal(t, screenAddType, m.screen)
+	assert.Equal(t, 0, m.addTypeCursor)
+
+	for i := 0; i < len(addTypeOptions)+2; i++ {
+		updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+		m = updated.(*Model)
+	}
+	assert.Equal(t, len(addTypeOptions)-1, m.addTypeCursor, "cursor must clamp at the last option")
+}
+
+func TestModel_AddType_EscCancelsBackToList(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, nil)
+	m = loginViaEnter(t, m)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	m = updated.(*Model)
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = updated.(*Model)
+	assert.Equal(t, screenList, m.screen)
+}
+
+func TestModel_AddForm_EscCancelsBackToList(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, nil)
+	m = loginViaEnter(t, m)
+	m = openAddForm(t, m, 0)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = updated.(*Model)
+	assert.Equal(t, screenList, m.screen)
+	assert.Empty(t, m.records)
+}
+
+func TestModel_AddForm_Credentials_CreatesRecord(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, nil)
+	m = loginViaEnter(t, m)
+	m = openAddForm(t, m, 0) // Credentials
+
+	m = fillAndSubmitAddForm(m, "my-service", "alice", "s3cret")
+
+	require.Equal(t, screenList, m.screen)
+	require.NoError(t, m.err)
+	require.Len(t, m.records, 1)
+	assert.Equal(t, domain.DataTypeCredentials, m.records[0].Type)
+
+	var payload domain.CredentialsPayload
+	meta, _, err := m.vault.Get(m.records[0].ID, &payload)
+	require.NoError(t, err)
+	assert.Equal(t, "my-service", meta)
+	assert.Equal(t, "alice", payload.Login)
+	assert.Equal(t, "s3cret", payload.Password)
+}
+
+func TestModel_AddForm_Text_CreatesRecord(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, nil)
+	m = loginViaEnter(t, m)
+	m = openAddForm(t, m, 1) // Text
+
+	m = fillAndSubmitAddForm(m, "note", "hello world")
+
+	require.Len(t, m.records, 1)
+	var payload domain.TextPayload
+	_, _, err := m.vault.Get(m.records[0].ID, &payload)
+	require.NoError(t, err)
+	assert.Equal(t, "hello world", payload.Content)
+}
+
+func TestModel_AddForm_Binary_CreatesRecord(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, nil)
+	m = loginViaEnter(t, m)
+	m = openAddForm(t, m, 2) // Binary
+
+	m = fillAndSubmitAddForm(m, "file", "raw-bytes", "note.txt")
+
+	require.Len(t, m.records, 1)
+	var payload domain.BinaryPayload
+	_, _, err := m.vault.Get(m.records[0].ID, &payload)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("raw-bytes"), payload.Data)
+	assert.Equal(t, "note.txt", payload.Filename)
+}
+
+func TestModel_AddForm_Card_CreatesRecord(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, nil)
+	m = loginViaEnter(t, m)
+	m = openAddForm(t, m, 3) // Card
+
+	m = fillAndSubmitAddForm(m, "visa", "4111111111111111", "Alice", "12/30", "123")
+
+	require.Len(t, m.records, 1)
+	var payload domain.CardPayload
+	_, _, err := m.vault.Get(m.records[0].ID, &payload)
+	require.NoError(t, err)
+	assert.Equal(t, "4111111111111111", payload.Number)
+	assert.Equal(t, "Alice", payload.Holder)
+	assert.Equal(t, "12/30", payload.Expiry)
+	assert.Equal(t, "123", payload.CVV)
+}
+
+func TestModel_AddForm_OTP_CreatesRecordWithDefaults(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, nil)
+	m = loginViaEnter(t, m)
+	m = openAddForm(t, m, 4) // OTP
+
+	// meta, secret, issuer, account — заполняем; algorithm/digits/period оставляем
+	// пустыми, чтобы проверить дефолты (SHA1/6/30 применяются на стороне REST/crypto,
+	// а тут — что пустая строка не ломает парсинг чисел).
+	m = fillAndSubmitAddForm(m, "gh", "JBSWY3DPEHPK3PXP", "GitHub", "alice@example.com", "", "", "")
+
+	require.NoError(t, m.err)
+	require.Len(t, m.records, 1)
+	var payload domain.OTPPayload
+	_, _, err := m.vault.Get(m.records[0].ID, &payload)
+	require.NoError(t, err)
+	assert.Equal(t, "JBSWY3DPEHPK3PXP", payload.Secret)
+	assert.Equal(t, "GitHub", payload.Issuer)
+	assert.Equal(t, "alice@example.com", payload.Account)
+	assert.Equal(t, 6, payload.Digits)
+	assert.Equal(t, 30, payload.Period)
+}
+
+func TestModel_AddForm_InvalidDigits_ShowsError(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, nil)
+	m = loginViaEnter(t, m)
+	m = openAddForm(t, m, 4) // OTP
+
+	m = fillAndSubmitAddForm(m, "gh", "JBSWY3DPEHPK3PXP", "", "", "", "not-a-number", "30")
+
+	assert.Equal(t, screenAddForm, m.screen, "must stay on the form when a field fails to parse")
+	assert.Error(t, m.err)
+	assert.Empty(t, m.records)
+}
