@@ -14,6 +14,29 @@ import (
 	"github.com/alexvictorne/voldepass/internal/domain"
 )
 
+// fakeSyncTransport — заглушка транспорта синхронизации для тестов Model.
+// Pull возвращает заранее заданные записи один раз, затем ничего (since уже сдвинут).
+type fakeSyncTransport struct {
+	pullRecords []domain.RecordDTO
+	pullErr     error
+	pulled      bool
+}
+
+func (f *fakeSyncTransport) Pull(ctx context.Context, sinceVersion int64) (domain.SyncPullResponse, error) {
+	if f.pullErr != nil {
+		return domain.SyncPullResponse{}, f.pullErr
+	}
+	if f.pulled {
+		return domain.SyncPullResponse{}, nil
+	}
+	f.pulled = true
+	return domain.SyncPullResponse{Records: f.pullRecords}, nil
+}
+
+func (f *fakeSyncTransport) Push(ctx context.Context, idempotencyKey string, req domain.SyncPushRequest) (domain.SyncPushResponse, error) {
+	return domain.SyncPushResponse{}, nil
+}
+
 // newTestModel создаёт модель с in-memory openSession-заглушкой — без сети и файлов.
 func newTestModel(t *testing.T, dataKey []byte, seedRecords func(v *service.VaultManager)) *Model {
 	t.Helper()
@@ -29,6 +52,27 @@ func newTestModel(t *testing.T, dataKey []byte, seedRecords func(v *service.Vaul
 	m := NewModel(clientcfg.Default())
 	m.openSession = func(ctx context.Context, cfg clientcfg.Config, login, password string) (*service.Session, *service.VaultManager, *service.Syncer, error) {
 		return session, vault, nil, nil
+	}
+	return m
+}
+
+// newTestModelWithSyncer — как newTestModel, но с реальным *service.Syncer поверх
+// fakeSyncTransport, чтобы тестировать ручной sync (клавиша "s" на экране списка).
+func newTestModelWithSyncer(t *testing.T, dataKey []byte, transport *fakeSyncTransport, seedRecords func(v *service.VaultManager)) *Model {
+	t.Helper()
+	store := storage.NewStore()
+	vault := service.NewVaultManager(store, dataKey)
+	if seedRecords != nil {
+		seedRecords(vault)
+	}
+	fileStore := storage.NewFileStore(t.TempDir() + "/storage.vp")
+	fileStore.Store = store
+	syncer := service.NewSyncer(transport, store)
+	session := service.NewSession(fileStore, dataKey, syncer)
+
+	m := NewModel(clientcfg.Default())
+	m.openSession = func(ctx context.Context, cfg clientcfg.Config, login, password string) (*service.Session, *service.VaultManager, *service.Syncer, error) {
+		return session, vault, syncer, nil
 	}
 	return m
 }
@@ -200,4 +244,73 @@ func TestModel_View_DoesNotPanic(t *testing.T) {
 
 	m.screen = screenDetail
 	assert.NotPanics(t, func() { m.View() })
+}
+
+func TestModel_List_SyncPullsNewRecords(t *testing.T) {
+	dataKey := testDataKey(t)
+	transport := &fakeSyncTransport{pullRecords: []domain.RecordDTO{
+		{ID: "remote-1", Type: domain.DataTypeText, Ciphertext: []byte("ct"), Nonce: []byte("n")},
+	}}
+	m := newTestModelWithSyncer(t, dataKey, transport, nil)
+	m = loginViaEnter(t, m)
+	require.Empty(t, m.records, "no records before sync")
+
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	m = updated.(*Model)
+	require.NotNil(t, cmd, "sync must run asynchronously via tea.Cmd")
+	assert.True(t, m.syncing)
+
+	msg := cmd()
+	updated, _ = m.Update(msg)
+	m = updated.(*Model)
+
+	assert.False(t, m.syncing)
+	assert.Nil(t, m.err)
+	require.Len(t, m.records, 1)
+	assert.Equal(t, "remote-1", m.records[0].ID)
+}
+
+func TestModel_List_SyncError_ShowsError(t *testing.T) {
+	dataKey := testDataKey(t)
+	transport := &fakeSyncTransport{pullErr: assert.AnError}
+	m := newTestModelWithSyncer(t, dataKey, transport, nil)
+	m = loginViaEnter(t, m)
+
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	m = updated.(*Model)
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	updated, _ = m.Update(msg)
+	m = updated.(*Model)
+
+	assert.False(t, m.syncing)
+	assert.Error(t, m.err)
+}
+
+func TestModel_List_SyncIgnoredWithoutSyncer(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, nil) // openSession возвращает nil syncer
+	m = loginViaEnter(t, m)
+
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	m = updated.(*Model)
+	assert.Nil(t, cmd, "sync without a syncer must be a no-op")
+	assert.False(t, m.syncing)
+}
+
+func TestModel_List_SyncIgnoredWhileSyncing(t *testing.T) {
+	dataKey := testDataKey(t)
+	transport := &fakeSyncTransport{}
+	m := newTestModelWithSyncer(t, dataKey, transport, nil)
+	m = loginViaEnter(t, m)
+
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	m = updated.(*Model)
+	require.NotNil(t, cmd)
+
+	updated, cmd2 := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	m = updated.(*Model)
+	assert.Nil(t, cmd2, "must not start a second sync while one is in flight")
+	assert.True(t, m.syncing)
 }

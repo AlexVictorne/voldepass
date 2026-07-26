@@ -33,7 +33,14 @@ type otpTickMsg time.Time
 type sessionResultMsg struct {
 	session *service.Session
 	vault   *service.VaultManager
+	syncer  *service.Syncer
 	err     error
+}
+
+// syncResultMsg — результат асинхронного Syncer.Sync (см. syncCmd).
+type syncResultMsg struct {
+	conflicts []domain.RecordDTO
+	err       error
 }
 
 // Model — состояние TUI-приложения (реализует tea.Model).
@@ -53,6 +60,8 @@ type Model struct {
 
 	session *service.Session
 	vault   *service.VaultManager
+	syncer  *service.Syncer
+	syncing bool
 
 	records []domain.RecordDTO
 	cursor  int
@@ -108,6 +117,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case sessionResultMsg:
 		return m.handleSessionResult(msg)
+	case syncResultMsg:
+		return m.handleSyncResult(msg)
 	}
 	return m, nil
 }
@@ -122,8 +133,27 @@ func (m *Model) handleSessionResult(msg sessionResultMsg) (tea.Model, tea.Cmd) {
 	m.err = nil
 	m.session = msg.session
 	m.vault = msg.vault
+	m.syncer = msg.syncer
 	m.records = msg.vault.List()
 	m.screen = screenList
+	return m, nil
+}
+
+// handleSyncResult обрабатывает результат асинхронного Syncer.Sync (см. syncCmd).
+func (m *Model) handleSyncResult(msg syncResultMsg) (tea.Model, tea.Cmd) {
+	m.syncing = false
+	if msg.err != nil {
+		m.err = msg.err
+		return m, nil
+	}
+	m.err = nil
+	m.records = m.vault.List()
+	if m.cursor >= len(m.records) {
+		m.cursor = max(len(m.records)-1, 0)
+	}
+	if len(msg.conflicts) > 0 {
+		m.err = fmt.Errorf("sync completed with %d unresolved conflict(s)", len(msg.conflicts))
+	}
 	return m, nil
 }
 
@@ -165,8 +195,18 @@ func (m *Model) updateLogin(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // логина остаются отзывчивыми, например, анимации/тик-сообщения).
 func (m *Model) loginCmd(login, password string) tea.Cmd {
 	return func() tea.Msg {
-		session, vault, _, err := m.openSession(m.ctx, m.cfg, login, password)
-		return sessionResultMsg{session: session, vault: vault, err: err}
+		session, vault, syncer, err := m.openSession(m.ctx, m.cfg, login, password)
+		return sessionResultMsg{session: session, vault: vault, syncer: syncer, err: err}
+	}
+}
+
+// syncCmd запускает Syncer.Sync (сеть) в отдельной горутине bubbletea, чтобы не
+// блокировать event loop на время синхронизации.
+func (m *Model) syncCmd() tea.Cmd {
+	syncer := m.syncer
+	return func() tea.Msg {
+		conflicts, err := syncer.Sync(m.ctx)
+		return syncResultMsg{conflicts: conflicts, err: err}
 	}
 }
 
@@ -198,6 +238,13 @@ func (m *Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.cursor < len(m.records)-1 {
 			m.cursor++
 		}
+	case "s":
+		if m.syncing || m.syncer == nil {
+			return m, nil
+		}
+		m.syncing = true
+		m.err = nil
+		return m, m.syncCmd()
 	case "enter":
 		if len(m.records) == 0 {
 			return m, nil
@@ -309,7 +356,13 @@ func (m *Model) viewList() string {
 		}
 		s += fmt.Sprintf("%s%s\n", cursor, r.ID)
 	}
-	s += "\n(up/down to navigate, enter to view, q to quit)"
+	if m.syncing {
+		s += "\nsyncing...\n"
+	}
+	if m.err != nil {
+		s += fmt.Sprintf("\nerror: %v\n", m.err)
+	}
+	s += "\n(up/down to navigate, enter to view, s to sync, q to quit)"
 	return s
 }
 
