@@ -29,6 +29,13 @@ const otpTickInterval = time.Second
 // otpTickMsg сигнализирует о необходимости пересчитать TOTP-код.
 type otpTickMsg time.Time
 
+// sessionResultMsg — результат асинхронного openSession (см. loginCmd).
+type sessionResultMsg struct {
+	session *service.Session
+	vault   *service.VaultManager
+	err     error
+}
+
 // Model — состояние TUI-приложения (реализует tea.Model).
 type Model struct {
 	ctx context.Context
@@ -42,6 +49,7 @@ type Model struct {
 	loginInput    textinput.Model
 	passwordInput textinput.Model
 	focus         int
+	loggingIn     bool
 
 	session *service.Session
 	vault   *service.VaultManager
@@ -98,7 +106,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.refreshOTP()
 			return m, otpTickCmd()
 		}
+	case sessionResultMsg:
+		return m.handleSessionResult(msg)
 	}
+	return m, nil
+}
+
+// handleSessionResult обрабатывает результат асинхронного логина (см. loginCmd).
+func (m *Model) handleSessionResult(msg sessionResultMsg) (tea.Model, tea.Cmd) {
+	m.loggingIn = false
+	if msg.err != nil {
+		m.err = msg.err
+		return m, nil
+	}
+	m.err = nil
+	m.session = msg.session
+	m.vault = msg.vault
+	m.records = msg.vault.List()
+	m.screen = screenList
 	return m, nil
 }
 
@@ -114,17 +139,12 @@ func (m *Model) updateLogin(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.applyFocus()
 		return m, nil
 	case tea.KeyEnter:
-		session, vault, _, err := m.openSession(m.ctx, m.cfg, m.loginInput.Value(), m.passwordInput.Value())
-		if err != nil {
-			m.err = err
+		if m.loggingIn {
 			return m, nil
 		}
+		m.loggingIn = true
 		m.err = nil
-		m.session = session
-		m.vault = vault
-		m.records = vault.List()
-		m.screen = screenList
-		return m, nil
+		return m, m.loginCmd(m.loginInput.Value(), m.passwordInput.Value())
 	}
 
 	var cmd tea.Cmd
@@ -134,6 +154,21 @@ func (m *Model) updateLogin(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.passwordInput, cmd = m.passwordInput.Update(msg)
 	}
 	return m, cmd
+}
+
+// loginCmd запускает openSession (сеть + Argon2id) в отдельной горутине bubbletea.
+//
+// Критично не вызывать openSession синхронно внутри Update: Argon2id с боевыми
+// параметрами (Threads=4, Memory=64MiB) — тяжёлая CPU-связанная операция, и её
+// выполнение в горутине основного event loop может застопорить чтение stdin
+// программой на неопределённый срок (воспроизведено на практике: после такого
+// блокирующего вызова терминал переставал доставлять последующие нажатия клавиш).
+// tea.Cmd выполняется bubbletea в отдельной горутине специально для таких случаев.
+func (m *Model) loginCmd(login, password string) tea.Cmd {
+	return func() tea.Msg {
+		session, vault, _, err := m.openSession(m.ctx, m.cfg, login, password)
+		return sessionResultMsg{session: session, vault: vault, err: err}
+	}
 }
 
 // applyFocus переключает bubbles-фокус между полями логина/пароля.
@@ -253,6 +288,9 @@ func (m *Model) viewLogin() string {
 	s := "Voldepass — sign in\n\n"
 	s += m.loginInput.View() + "\n"
 	s += m.passwordInput.View() + "\n"
+	if m.loggingIn {
+		s += "\nlogging in...\n"
+	}
 	if m.err != nil {
 		s += fmt.Sprintf("\nerror: %v\n", m.err)
 	}
