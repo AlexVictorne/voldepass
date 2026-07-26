@@ -25,15 +25,21 @@ func NewRecordRepository(pool *pgxpool.Pool) *RecordRepository {
 func (r *RecordRepository) Upsert(ctx context.Context, rec domain.Record, baseVersion int64) (domain.Record, error) {
 	var saved domain.Record
 
+	// version = nextval(...) в обеих ветках (INSERT и UPDATE): это глобальный
+	// монотонный курсор для протокола синхронизации (GET /sync?since=), а не
+	// локальный счётчик изменений отдельной записи. Если бы INSERT просто
+	// проставлял version=1, вторая и последующие НОВЫЕ записи получали бы тот
+	// же version=1, что и первая, и не проходили бы фильтр "version > since"
+	// при следующем Pull — клиент их просто не увидел бы.
 	err := r.pool.QueryRow(ctx, `
 		INSERT INTO records (id, owner_id, type, encrypted_meta, meta_nonce, ciphertext, nonce, version, updated_at, deleted)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, 1, now(), $8)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, nextval('records_version_seq'), now(), $8)
 		ON CONFLICT (id) DO UPDATE
 			SET encrypted_meta = EXCLUDED.encrypted_meta,
 			    meta_nonce      = EXCLUDED.meta_nonce,
 			    ciphertext      = EXCLUDED.ciphertext,
 			    nonce           = EXCLUDED.nonce,
-			    version         = records.version + 1,
+			    version         = nextval('records_version_seq'),
 			    updated_at      = now(),
 			    deleted         = EXCLUDED.deleted
 			WHERE records.version = $9
@@ -111,7 +117,7 @@ func (r *RecordRepository) Get(ctx context.Context, id, ownerID string) (domain.
 
 func (r *RecordRepository) Delete(ctx context.Context, id, ownerID string) error {
 	tag, err := r.pool.Exec(ctx, `
-		UPDATE records SET deleted = true, version = version + 1, updated_at = $1
+		UPDATE records SET deleted = true, version = nextval('records_version_seq'), updated_at = $1
 		WHERE id = $2 AND owner_id = $3`,
 		time.Now().UTC(), id, ownerID,
 	)

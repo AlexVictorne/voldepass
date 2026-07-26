@@ -34,6 +34,33 @@ func TestScenario_RegisterAddSyncSecondClient(t *testing.T) {
 	assert.Len(t, pulled.Records, len(types))
 }
 
+// TestScenario_VersionIsGlobalMonotonicCounter проверяет, что version — это
+// глобальный монотонный курсор синхронизации, а не локальный счётчик изменений
+// отдельной записи. Баг: если версии по ошибке нумеруются "с 1" при каждой
+// INSERT (независимо на каждую новую запись), то ВТОРАЯ и последующие новые
+// записи получают тот же version=1, что и первая, и не проходят фильтр
+// "version > since" при последующем Pull — клиент, уже видевший version=1,
+// никогда не увидит вторую запись.
+func TestScenario_VersionIsGlobalMonotonicCounter(t *testing.T) {
+	srv := newTestServer(t)
+	login := uniqueLogin(t)
+	token, _ := registerAndLogin(t, srv, login, "master-password")
+
+	// Создаём первую запись и "запоминаем" версию — как клиент запоминает
+	// LastSyncVersion после первого Pull/Push.
+	first := createTestRecord(t, srv, token, domain.DataTypeText, "rec1")
+	sinceAfterFirst := first.Version
+
+	// Создаём вторую (независимую) запись.
+	second := createTestRecord(t, srv, token, domain.DataTypeText, "rec2")
+	require.NotEqual(t, first.Version, second.Version, "each new record must get a distinct, increasing version")
+
+	// Pull с курсора после первой записи должен вернуть именно вторую.
+	pulled := syncPull(t, srv, token, sinceAfterFirst)
+	require.Len(t, pulled.Records, 1, "pull since=%d must return the second record, not miss it", sinceAfterFirst)
+	assert.Equal(t, second.ID, pulled.Records[0].ID)
+}
+
 // TestScenario_PushConflict проверяет обнаружение конфликта версий при push с устаревшей BaseVersion.
 func TestScenario_PushConflict(t *testing.T) {
 	srv := newTestServer(t)
