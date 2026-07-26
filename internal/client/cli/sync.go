@@ -28,14 +28,14 @@ func runSync(ctx context.Context, cfg clientcfg.Config, login, password string, 
 	}
 
 	if len(conflicts) > 0 {
-		fmt.Fprintf(out, "sync completed with %d unresolved conflict(s):\n", len(conflicts))
+		_, _ = fmt.Fprintf(out, "sync completed with %d unresolved conflict(s):\n", len(conflicts))
 		for _, c := range conflicts {
-			fmt.Fprintf(out, "  - %s\n", c.ID)
+			_, _ = fmt.Fprintf(out, "  - %s\n", c.ID)
 		}
 		return nil
 	}
 
-	fmt.Fprintln(out, "sync completed")
+	_, _ = fmt.Fprintln(out, "sync completed")
 	return nil
 }
 

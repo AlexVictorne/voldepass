@@ -23,7 +23,7 @@ func runLogout(ctx context.Context, cfg clientcfg.Config, login, password string
 		return fmt.Errorf("logout: %w", err)
 	}
 
-	fmt.Fprintf(out, "logged out %q\n", login)
+	_, _ = fmt.Fprintf(out, "logged out %q\n", login)
 	return nil
 }
 

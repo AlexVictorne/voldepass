@@ -22,7 +22,7 @@ func runLogin(ctx context.Context, cfg clientcfg.Config, login, password string,
 		return fmt.Errorf("login: %w", err)
 	}
 
-	fmt.Fprintf(out, "logged in as %q\n", login)
+	_, _ = fmt.Fprintf(out, "logged in as %q\n", login)
 	return nil
 }
 

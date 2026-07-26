@@ -24,7 +24,7 @@ func (c *Client) Register(ctx context.Context, login string, authVerifier []byte
 		KdfParams:      profile.KdfParams,
 		WrappedDataKey: profile.WrappedDataKey,
 	}
-	if _, err := c.doJSON(ctx, "POST", "/api/v1/register", req, nil, false, nil); err != nil {
+	if err := c.doJSON(ctx, "POST", "/api/v1/register", req, nil, false, nil); err != nil {
 		return fmt.Errorf("register: %w", err)
 	}
 	return nil
@@ -50,7 +50,7 @@ type challengeResponse struct {
 // Challenge запрашивает serverNonce и криптографический профиль для входа (первая фаза login).
 func (c *Client) Challenge(ctx context.Context, login string) (ChallengeResult, error) {
 	var resp challengeResponse
-	if _, err := c.doJSON(ctx, "POST", "/api/v1/login/challenge", challengeRequest{Login: login}, &resp, false, nil); err != nil {
+	if err := c.doJSON(ctx, "POST", "/api/v1/login/challenge", challengeRequest{Login: login}, &resp, false, nil); err != nil {
 		return ChallengeResult{}, fmt.Errorf("challenge: %w", err)
 	}
 	return ChallengeResult{
@@ -77,7 +77,7 @@ type tokenResponse struct {
 // и сохраняет полученные access/refresh токены в клиенте.
 func (c *Client) Login(ctx context.Context, login string, authMsg []byte) error {
 	var resp tokenResponse
-	if _, err := c.doJSON(ctx, "POST", "/api/v1/login", loginRequest{Login: login, AuthMsg: authMsg}, &resp, false, nil); err != nil {
+	if err := c.doJSON(ctx, "POST", "/api/v1/login", loginRequest{Login: login, AuthMsg: authMsg}, &resp, false, nil); err != nil {
 		return fmt.Errorf("login: %w", err)
 	}
 	c.SetTokens(resp.AccessToken, resp.RefreshToken)
@@ -91,7 +91,7 @@ type refreshRequest struct {
 // Refresh обновляет access-токен, используя сохранённый refresh-токен, и сохраняет новую пару.
 func (c *Client) Refresh(ctx context.Context) error {
 	var resp tokenResponse
-	if _, err := c.doJSON(ctx, "POST", "/api/v1/refresh", refreshRequest{RefreshToken: c.refreshToken}, &resp, false, nil); err != nil {
+	if err := c.doJSON(ctx, "POST", "/api/v1/refresh", refreshRequest{RefreshToken: c.refreshToken}, &resp, false, nil); err != nil {
 		return fmt.Errorf("refresh: %w", err)
 	}
 	c.SetTokens(resp.AccessToken, resp.RefreshToken)

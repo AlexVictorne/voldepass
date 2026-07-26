@@ -68,7 +68,7 @@ func (fs *FileStore) Save(dataKey []byte) error {
 	state := fs.Snapshot()
 	state.Version = currentFormatVersion
 
-	plaintext, err := json.Marshal(state)
+	plaintext, err := json.Marshal(state) //nolint:gosec // marshaled only to be AES-GCM encrypted below, never logged/exposed as plaintext
 	if err != nil {
 		return fmt.Errorf("marshal storage state: %w", err)
 	}
@@ -99,11 +99,11 @@ func atomicWriteFile(path string, data []byte) error {
 	defer os.Remove(tmpPath) //nolint:errcheck
 
 	if _, err := tmp.Write(data); err != nil {
-		tmp.Close() //nolint:errcheck
+		_ = tmp.Close() //nolint:errcheck,gosec // best-effort cleanup, original write error is what matters
 		return fmt.Errorf("write temp file: %w", err)
 	}
 	if err := tmp.Sync(); err != nil {
-		tmp.Close() //nolint:errcheck
+		_ = tmp.Close() //nolint:errcheck,gosec // best-effort cleanup, original sync error is what matters
 		return fmt.Errorf("fsync temp file: %w", err)
 	}
 	if err := tmp.Close(); err != nil {

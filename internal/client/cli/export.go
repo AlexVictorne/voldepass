@@ -35,7 +35,7 @@ func runExport(ctx context.Context, cfg clientcfg.Config, login, password, outpu
 		return fmt.Errorf("export: %w", err)
 	}
 
-	fmt.Fprintf(out, "exported %d record(s) to %s\n", len(records), outputPath)
+	_, _ = fmt.Fprintf(out, "exported %d record(s) to %s\n", len(records), outputPath)
 	return nil
 }
 

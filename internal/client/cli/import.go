@@ -36,7 +36,7 @@ func runImport(ctx context.Context, cfg clientcfg.Config, login, password, input
 		return fmt.Errorf("import: %w", err)
 	}
 
-	fmt.Fprintf(out, "imported %d record(s) from %s\n", len(result.Records), inputPath)
+	_, _ = fmt.Fprintf(out, "imported %d record(s) from %s\n", len(result.Records), inputPath)
 	return nil
 }
 

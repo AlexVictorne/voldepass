@@ -2,7 +2,7 @@ package crypto
 
 import (
 	"crypto/hmac"
-	"crypto/sha1"
+	"crypto/sha1" //nolint:gosec // SHA1 is RFC 6238's default/most widely supported TOTP algorithm, not used for a security-critical hash here
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/base32"

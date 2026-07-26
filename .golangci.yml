@@ -20,12 +20,18 @@ linters:
       excludes:
         # G304 допустим в конфиге (путь к файлу из конфига)
         - G304
+    exhaustive:
+      # switch по DataType/tea.KeyType с явным default-веткой намеренно
+      # покрывает "всё остальное" (в т.ч. будущие варианты), а не перечисляет
+      # каждый case вручную — считаем такой switch исчерпывающим.
+      default-signifies-exhaustive: true
   exclusions:
     rules:
       - path: "_test\\.go"
         linters:
           - gosec
           - errcheck
+          - noctx
 
 formatters:
   enable:

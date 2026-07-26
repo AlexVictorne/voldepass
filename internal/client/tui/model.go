@@ -91,6 +91,8 @@ func buildAddFormFields(dataType domain.DataType) []addFormField {
 			newAddFormField("digits", "default 6", false),
 			newAddFormField("period", "default 30 (seconds)", false),
 		)
+	default:
+		// dataType всегда приходит из addTypeOptions (только реальные типы) — сюда не попадём.
 	}
 	return fields
 }
@@ -299,6 +301,8 @@ func (m *Model) updateLogin(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.loggingIn = true
 		m.err = nil
 		return m, m.loginCmd(m.loginInput.Value(), m.passwordInput.Value())
+	default:
+		// прочие клавиши обрабатываются как ввод текста ниже.
 	}
 
 	var cmd tea.Cmd
@@ -436,6 +440,8 @@ func (m *Model) updateAddForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.submitAddForm()
+	default:
+		// прочие клавиши обрабатываются как ввод текста ниже.
 	}
 
 	var cmd tea.Cmd

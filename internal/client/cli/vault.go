@@ -103,7 +103,7 @@ func runAdd(ctx context.Context, cfg clientcfg.Config, login, password string, d
 		return fmt.Errorf("add: %w", err)
 	}
 
-	fmt.Fprintf(out, "created record %s\n", dto.ID)
+	_, _ = fmt.Fprintf(out, "created record %s\n", dto.ID)
 	return nil
 }
 
@@ -121,7 +121,7 @@ func runList(ctx context.Context, cfg clientcfg.Config, login, password string, 
 		return fmt.Errorf("list: sync: %w", err)
 	}
 	if len(conflicts) > 0 {
-		fmt.Fprintf(out, "warning: sync completed with %d unresolved conflict(s)\n", len(conflicts))
+		_, _ = fmt.Fprintf(out, "warning: sync completed with %d unresolved conflict(s)\n", len(conflicts))
 	}
 
 	for _, dto := range b.vault.List() {
@@ -129,7 +129,7 @@ func runList(ctx context.Context, cfg clientcfg.Config, login, password string, 
 		if err != nil {
 			meta = "<decrypt error>"
 		}
-		fmt.Fprintf(out, "%s\t%v\t%s\n", dto.ID, dto.Type, meta)
+		_, _ = fmt.Fprintf(out, "%s\t%v\t%s\n", dto.ID, dto.Type, meta)
 	}
 
 	return b.session.Close(ctx)
@@ -159,7 +159,7 @@ func runGet(ctx context.Context, cfg clientcfg.Config, login, password, id strin
 	if err != nil {
 		return fmt.Errorf("get: %w", err)
 	}
-	fmt.Fprintf(out, "meta: %s\npayload: %s\n", meta, data)
+	_, _ = fmt.Fprintf(out, "meta: %s\npayload: %s\n", meta, data)
 
 	return b.session.Close(ctx)
 }
@@ -183,7 +183,7 @@ func runEdit(ctx context.Context, cfg clientcfg.Config, login, password, id stri
 		return fmt.Errorf("edit: %w", err)
 	}
 
-	fmt.Fprintf(out, "updated record %s\n", id)
+	_, _ = fmt.Fprintf(out, "updated record %s\n", id)
 	return nil
 }
 
@@ -201,7 +201,7 @@ func runDelete(ctx context.Context, cfg clientcfg.Config, login, password, id st
 		return fmt.Errorf("delete: %w", err)
 	}
 
-	fmt.Fprintf(out, "deleted record %s\n", id)
+	_, _ = fmt.Fprintf(out, "deleted record %s\n", id)
 	return nil
 }
 

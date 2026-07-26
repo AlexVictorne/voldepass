@@ -42,7 +42,7 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 
 // MarshalJSON реализует json.Marshaler для Duration.
 func (d Duration) MarshalJSON() ([]byte, error) {
-	return json.Marshal(d.Duration.String())
+	return json.Marshal(d.String())
 }
 
 // UnmarshalText реализует encoding.TextUnmarshaler для Duration (для caarlos0/env).

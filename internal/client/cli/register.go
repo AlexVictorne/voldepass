@@ -16,7 +16,7 @@ import (
 func runRegister(ctx context.Context, cfg clientcfg.Config, login, password string, out io.Writer) error {
 	strength := crypto.EvaluatePasswordStrength(password)
 	for _, msg := range strength.Feedback {
-		fmt.Fprintf(out, "warning: %s\n", msg)
+		_, _ = fmt.Fprintf(out, "warning: %s\n", msg)
 	}
 
 	b, err := openNewSession(ctx, cfg, login, password)
@@ -27,7 +27,7 @@ func runRegister(ctx context.Context, cfg clientcfg.Config, login, password stri
 		return fmt.Errorf("register: %w", err)
 	}
 
-	fmt.Fprintf(out, "registered %q\n", login)
+	_, _ = fmt.Fprintf(out, "registered %q\n", login)
 	return nil
 }
 

@@ -15,7 +15,7 @@ func runGenerate(opts crypto.GenerateOptions, out io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("generate: %w", err)
 	}
-	fmt.Fprintln(out, pw)
+	_, _ = fmt.Fprintln(out, pw)
 	return nil
 }
 

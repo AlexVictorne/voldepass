@@ -46,7 +46,7 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 
 // MarshalJSON реализует json.Marshaler для Duration.
 func (d Duration) MarshalJSON() ([]byte, error) {
-	return json.Marshal(d.Duration.String())
+	return json.Marshal(d.String())
 }
 
 // UnmarshalText реализует encoding.TextUnmarshaler для Duration.
@@ -98,7 +98,8 @@ func dur(d time.Duration) Duration { return Duration{d} }
 
 // Default возвращает Config с разумными значениями по умолчанию для разработки.
 func Default() Config {
-	return Config{
+	// DatabaseURL below is a local dev default matching docker-compose.yml, not a real secret.
+	return Config{ //nolint:gosec
 		Address:          ":8080",
 		DatabaseURL:      "postgres://voldepass:voldepass@localhost:5432/voldepass?sslmode=disable",
 		JWTSecret:        "",

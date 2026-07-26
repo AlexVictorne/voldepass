@@ -26,7 +26,7 @@ func runOTPGet(ctx context.Context, cfg clientcfg.Config, login, password, id st
 		return fmt.Errorf("otp: %w", err)
 	}
 
-	fmt.Fprintln(out, code)
+	_, _ = fmt.Fprintln(out, code)
 	return nil
 }
 
