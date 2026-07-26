@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alexvictorne/voldepass/internal/client/crypto"
@@ -62,6 +63,7 @@ func newTestServer(t *testing.T) *testServer {
 		rest.NewSyncHandlers(syncSvc),
 		jwt,
 		nil,
+		zerolog.Nop(),
 	)
 	return &testServer{Server: httptest.NewServer(router)}
 }

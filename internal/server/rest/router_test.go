@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -50,6 +51,7 @@ func newTestServerWithCORS(t *testing.T, corsAllowedOrigins []string) *httptest.
 		rest.NewSyncHandlers(syncSvc),
 		jwt,
 		corsAllowedOrigins,
+		zerolog.Nop(),
 	)
 	return httptest.NewServer(router)
 }

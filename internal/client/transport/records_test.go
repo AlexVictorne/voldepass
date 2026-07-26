@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -44,6 +45,7 @@ func newLiveServer(t *testing.T) *httptest.Server {
 		rest.NewSyncHandlers(syncSvc),
 		jwt,
 		nil,
+		zerolog.Nop(),
 	)
 	return httptest.NewServer(router)
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/rs/zerolog"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 
 	_ "github.com/alexvictorne/voldepass/api/openapi" // регистрирует сгенерированную swagger-спецификацию
@@ -16,11 +17,13 @@ import (
 // corsAllowedOrigins — разрешённые Origin для CORS (см. config.Config.CORSAllowedOrigins);
 // пустой список отключает CORS-заголовки (браузерные клиенты не смогут делать запросы
 // с других origin — нормально для CLI/TUI-клиентов, не затрагивающих браузер).
-func NewRouter(auth *AuthHandlers, vault *VaultHandlers, sync *SyncHandlers, jwt jwtParser, corsAllowedOrigins []string) http.Handler {
+// log используется RequestLogger для структурного логирования каждого запроса.
+func NewRouter(auth *AuthHandlers, vault *VaultHandlers, sync *SyncHandlers, jwt jwtParser, corsAllowedOrigins []string, log zerolog.Logger) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
+	r.Use(RequestLogger(log))
 	if len(corsAllowedOrigins) > 0 {
 		r.Use(cors.Handler(cors.Options{
 			AllowedOrigins:   corsAllowedOrigins,

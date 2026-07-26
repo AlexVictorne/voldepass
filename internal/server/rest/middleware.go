@@ -5,6 +5,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/rs/zerolog"
 
 	"github.com/alexvictorne/voldepass/internal/domain"
 )
@@ -38,6 +42,29 @@ func AuthMiddleware(jwt jwtParser) func(http.Handler) http.Handler {
 
 			ctx := context.WithValue(r.Context(), ctxKeyUserID, userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// RequestLogger возвращает middleware, логирующее каждый запрос одной структурной
+// записью (method, path, status, размер ответа, длительность, request ID) через
+// zerolog. Тело запроса/ответа не логируется — только чужие приватные данные.
+func RequestLogger(log zerolog.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+
+			next.ServeHTTP(ww, r)
+
+			log.Info().
+				Str("method", r.Method).
+				Str("path", r.URL.Path).
+				Int("status", ww.Status()).
+				Int("bytes", ww.BytesWritten()).
+				Dur("duration", time.Since(start)).
+				Str("request_id", middleware.GetReqID(r.Context())).
+				Msg("http request")
 		})
 	}
 }
