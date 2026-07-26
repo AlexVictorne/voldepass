@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -122,7 +123,7 @@ func defaultStorageFile() string {
 // preParseConfigPath извлекает значение -config без влияния на основной flag.FlagSet.
 func preParseConfigPath(args []string) string {
 	fs := flag.NewFlagSet("preparse", flag.ContinueOnError)
-	fs.SetOutput(os.NewFile(0, os.DevNull))
+	fs.SetOutput(io.Discard)
 	path := fs.String("config", "", "")
 	_ = fs.Parse(args)
 	return *path

@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -146,7 +147,7 @@ func Load(args []string) (Config, error) {
 // Неизвестные флаги игнорируются — они будут разобраны позднее.
 func preParseConfigPath(args []string) string {
 	fs := flag.NewFlagSet("preparse", flag.ContinueOnError)
-	fs.SetOutput(os.NewFile(0, os.DevNull))
+	fs.SetOutput(io.Discard)
 	path := fs.String("config", "", "")
 	_ = fs.Parse(args)
 	return *path
