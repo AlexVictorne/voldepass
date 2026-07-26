@@ -2,11 +2,12 @@ package service
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"time"
 
-	"github.com/alexvictorne/voldepass/internal/client/crypto"
 	"github.com/alexvictorne/voldepass/internal/domain"
 )
 
@@ -120,7 +121,7 @@ func (s *AuthService) Login(ctx context.Context, login string, authMsg []byte) (
 		return AuthTokens{}, fmt.Errorf("login: %w", domain.ErrUnauthorized)
 	}
 
-	if !crypto.VerifyAuthMessage(u.AuthVerifier, []byte(nonce), authMsg) {
+	if !verifyAuthMessage(u.AuthVerifier, []byte(nonce), authMsg) {
 		_ = s.attempts.Inc(ctx, login)
 		return AuthTokens{}, domain.ErrUnauthorized
 	}
@@ -153,4 +154,18 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (AuthTok
 		return AuthTokens{}, fmt.Errorf("refresh: issue access token: %w", err)
 	}
 	return AuthTokens{AccessToken: access, RefreshToken: newRefresh}, nil
+}
+
+// verifyAuthMessage проверяет authMsg = HMAC-SHA256(authKeyVerifier, serverNonce) в
+// constant-time (hmac.Equal), чтобы исключить timing-атаки. authKeyVerifier — authKey,
+// сохранённый сервером при регистрации; сам authKey никогда не передаётся по сети.
+//
+// HMAC пересчитывается здесь, а не через internal/client/crypto.AuthMessage — сервер
+// не должен зависеть от пакета клиента (гексагональная архитектура: клиент и сервер
+// независимы, общий протокол не должен требовать общего кода поверх контракта API).
+func verifyAuthMessage(authKeyVerifier, serverNonce, authMsg []byte) bool {
+	mac := hmac.New(sha256.New, authKeyVerifier)
+	mac.Write(serverNonce)
+	expected := mac.Sum(nil)
+	return hmac.Equal(expected, authMsg)
 }
