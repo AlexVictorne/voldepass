@@ -499,3 +499,42 @@ func TestModel_AddForm_InvalidDigits_ShowsError(t *testing.T) {
 	assert.Error(t, m.err)
 	assert.Empty(t, m.records)
 }
+
+func TestModel_List_ShowsLastSyncTime(t *testing.T) {
+	dataKey := testDataKey(t)
+	transport := &fakeSyncTransport{}
+	m := newTestModelWithSyncer(t, dataKey, transport, nil)
+	m = loginViaEnter(t, m)
+
+	assert.True(t, m.lastSyncAt.IsZero(), "must not report a sync time before any sync ran")
+	assert.Contains(t, m.viewList(), "not synced yet")
+
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	m = updated.(*Model)
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	updated, _ = m.Update(msg)
+	m = updated.(*Model)
+
+	assert.False(t, m.lastSyncAt.IsZero(), "successful sync must record a timestamp")
+	assert.Contains(t, m.viewList(), m.lastSyncAt.Format("2006-01-02 15:04:05"))
+}
+
+func TestModel_List_SyncError_DoesNotUpdateLastSyncTime(t *testing.T) {
+	dataKey := testDataKey(t)
+	transport := &fakeSyncTransport{pullErr: assert.AnError}
+	m := newTestModelWithSyncer(t, dataKey, transport, nil)
+	m = loginViaEnter(t, m)
+
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	m = updated.(*Model)
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	updated, _ = m.Update(msg)
+	m = updated.(*Model)
+
+	assert.True(t, m.lastSyncAt.IsZero(), "failed sync must not record a timestamp")
+	assert.Contains(t, m.viewList(), "not synced yet")
+}

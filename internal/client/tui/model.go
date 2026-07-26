@@ -174,8 +174,9 @@ type Model struct {
 	syncer  *service.Syncer
 	syncing bool
 
-	records []domain.RecordDTO
-	cursor  int
+	records    []domain.RecordDTO
+	cursor     int
+	lastSyncAt time.Time
 
 	detailMeta    string
 	detailPayload string
@@ -267,6 +268,7 @@ func (m *Model) handleSyncResult(msg syncResultMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.err = nil
+	m.lastSyncAt = time.Now()
 	m.records = m.vault.List()
 	if m.cursor >= len(m.records) {
 		m.cursor = max(len(m.records)-1, 0)
@@ -566,6 +568,10 @@ func (m *Model) viewList() string {
 	}
 	if m.syncing {
 		s += "\nsyncing...\n"
+	} else if !m.lastSyncAt.IsZero() {
+		s += fmt.Sprintf("\nlast sync: %s\n", m.lastSyncAt.Format("2006-01-02 15:04:05"))
+	} else {
+		s += "\nnot synced yet\n"
 	}
 	if m.err != nil {
 		s += fmt.Sprintf("\nerror: %v\n", m.err)
