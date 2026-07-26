@@ -66,6 +66,17 @@ func TestDecrypt_TamperedCiphertext(t *testing.T) {
 	assert.Error(t, err, "tampered ciphertext must fail authentication")
 }
 
+func TestDecrypt_WrongNonceLength_ReturnsErrorNotPanic(t *testing.T) {
+	key := newTestKey(t)
+	ct, _, err := crypto.Encrypt(key, []byte("data"))
+	require.NoError(t, err)
+
+	for _, n := range [][]byte{nil, {}, {1}, {1, 2, 3}, make([]byte, 11), make([]byte, 13), make([]byte, 32)} {
+		_, err := crypto.Decrypt(key, ct, n)
+		assert.ErrorIs(t, err, crypto.ErrInvalidNonceLength, "nonce of length %d must be rejected with an error, not panic", len(n))
+	}
+}
+
 func TestDecrypt_EmptyPlaintext(t *testing.T) {
 	key := newTestKey(t)
 	ct, nonce, err := crypto.Encrypt(key, []byte{})
