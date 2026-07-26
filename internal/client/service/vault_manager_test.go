@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -117,6 +118,55 @@ func TestVaultManager_Update(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "v2", got.Content)
 	assert.Equal(t, "note-meta-2", meta)
+}
+
+// TestVaultManager_Create_SetsDirtyAt проверяет, что Create/Update/Delete проставляют
+// StoredRecord.DirtyAt — Syncer использует его для LWW-разрешения конфликтов.
+func TestVaultManager_Create_SetsDirtyAt(t *testing.T) {
+	store := storage.NewStore()
+	v := clientservice.NewVaultManager(store, newTestDataKey(t))
+
+	before := time.Now()
+	dto, err := v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "x"})
+	require.NoError(t, err)
+	after := time.Now()
+
+	rec, ok := store.GetRecord(dto.ID)
+	require.True(t, ok)
+	assert.True(t, !rec.DirtyAt.Before(before) && !rec.DirtyAt.After(after), "DirtyAt must be set to roughly now() on Create")
+}
+
+func TestVaultManager_Update_RefreshesDirtyAt(t *testing.T) {
+	store := storage.NewStore()
+	v := clientservice.NewVaultManager(store, newTestDataKey(t))
+	dto, err := v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "v1"})
+	require.NoError(t, err)
+
+	createdAt, ok := store.GetRecord(dto.ID)
+	require.True(t, ok)
+
+	time.Sleep(time.Millisecond)
+	_, err = v.Update(dto.ID, "", domain.TextPayload{Content: "v2"})
+	require.NoError(t, err)
+
+	updatedAt, ok := store.GetRecord(dto.ID)
+	require.True(t, ok)
+	assert.True(t, updatedAt.DirtyAt.After(createdAt.DirtyAt), "Update must refresh DirtyAt to the time of the edit")
+}
+
+func TestVaultManager_Delete_SetsDirtyAt(t *testing.T) {
+	store := storage.NewStore()
+	v := clientservice.NewVaultManager(store, newTestDataKey(t))
+	dto, err := v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "x"})
+	require.NoError(t, err)
+
+	before := time.Now()
+	require.NoError(t, v.Delete(dto.ID))
+	after := time.Now()
+
+	rec, ok := store.GetRecord(dto.ID)
+	require.True(t, ok)
+	assert.True(t, !rec.DirtyAt.Before(before) && !rec.DirtyAt.After(after), "DirtyAt must be refreshed to roughly now() on Delete")
 }
 
 func TestVaultManager_Update_NotFound(t *testing.T) {

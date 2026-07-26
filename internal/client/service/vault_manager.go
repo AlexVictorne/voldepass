@@ -54,7 +54,7 @@ func (v *VaultManager) Create(dataType domain.DataType, meta string, payload any
 		Ciphertext:    ciphertext,
 		Nonce:         nonce,
 	}
-	v.store.PutRecord(storage.StoredRecord{RecordDTO: dto, Dirty: true})
+	v.store.PutRecord(storage.StoredRecord{RecordDTO: dto, Dirty: true, DirtyAt: time.Now()})
 	return dto, nil
 }
 
@@ -90,7 +90,7 @@ func (v *VaultManager) Update(id string, meta string, payload any) (domain.Recor
 	dto.Nonce = nonce
 	dto.BaseVersion = existing.Version
 
-	v.store.PutRecord(storage.StoredRecord{RecordDTO: dto, Dirty: true})
+	v.store.PutRecord(storage.StoredRecord{RecordDTO: dto, Dirty: true, DirtyAt: time.Now()})
 	return dto, nil
 }
 
@@ -105,6 +105,7 @@ func (v *VaultManager) Delete(id string) error {
 	existing.IsDeleted = true
 	existing.BaseVersion = existing.Version
 	existing.Dirty = true
+	existing.DirtyAt = time.Now()
 	v.store.PutRecord(existing)
 	return nil
 }
@@ -161,9 +162,10 @@ func (v *VaultManager) GetMeta(id string) (string, error) {
 // ExportBundle) в локальное хранилище и помечает их Dirty для последующей
 // отправки на сервер — импортированные данные могли не существовать на сервере.
 func (v *VaultManager) Import(records []domain.RecordDTO) {
+	now := time.Now()
 	for _, dto := range records {
 		dto.BaseVersion = dto.Version
-		v.store.PutRecord(storage.StoredRecord{RecordDTO: dto, Dirty: true})
+		v.store.PutRecord(storage.StoredRecord{RecordDTO: dto, Dirty: true, DirtyAt: now})
 	}
 }
 

@@ -133,6 +133,143 @@ func TestSyncer_ConflictCreatesCopyAndAcceptsServer(t *testing.T) {
 	assert.Len(t, all, 2, "expected original (server-won) record plus one conflict-copy")
 }
 
+// TestSyncer_Conflict_LocalWinsWhenNewer проверяет LWW в пользу локальной стороны:
+// если локальное изменение сделано позже серверного (по времени), оно должно
+// победить и быть отправлено на сервер, а не потеряться под серверной версией.
+func TestSyncer_Conflict_LocalWinsWhenNewer(t *testing.T) {
+	adapter, svc := newSyncSetup("u1")
+	ctx := context.Background()
+	dataKey := newTestDataKey(t)
+
+	store := storage.NewStore()
+	vault := clientservice.NewVaultManager(store, dataKey)
+	dto, err := vault.Create(domain.DataTypeText, "", domain.TextPayload{Content: "v1"})
+	require.NoError(t, err)
+
+	syncer := clientservice.NewSyncer(adapter, store)
+	_, err = syncer.Sync(ctx)
+	require.NoError(t, err)
+
+	// "Другое устройство" меняет запись на сервере ПЕРВЫМ (раньше нашего локального изменения).
+	current, ok := store.GetRecord(dto.ID)
+	require.True(t, ok)
+	_, err = svc.Push(ctx, "u1", "other-device-key", domain.SyncPushRequest{
+		Records: []domain.RecordDTO{
+			{ID: dto.ID, Type: domain.DataTypeText, Ciphertext: []byte("stale-server-ct"), Nonce: []byte("n"), BaseVersion: current.Version},
+		},
+	})
+	require.NoError(t, err)
+
+	// Наше локальное изменение происходит ПОЗЖЕ серверного — должно победить.
+	_, err = vault.Update(dto.ID, "", domain.TextPayload{Content: "newer-local"})
+	require.NoError(t, err)
+	localCiphertext, _ := store.GetRecord(dto.ID)
+
+	conflicts, err := syncer.Sync(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, conflicts, "local-wins record must be pushed successfully, not left in conflict")
+
+	final, ok := store.GetRecord(dto.ID)
+	require.True(t, ok)
+	assert.Equal(t, localCiphertext.Ciphertext, final.Ciphertext, "newer local edit must win and be pushed as canonical")
+	assert.False(t, final.Dirty, "the winning local record must be pushed, clearing Dirty")
+
+	all := store.ListRecords()
+	assert.Len(t, all, 1, "local-wins must not create a conflict-copy — nothing was lost")
+}
+
+// TestSyncer_Conflict_LocalDeleteWinsOverStaleServerUpdate проверяет delete-wins:
+// локальное удаление должно победить серверное обновление безусловно, даже если
+// серверное изменение по времени новее локального delete.
+func TestSyncer_Conflict_LocalDeleteWinsOverStaleServerUpdate(t *testing.T) {
+	adapter, svc := newSyncSetup("u1")
+	ctx := context.Background()
+	dataKey := newTestDataKey(t)
+
+	store := storage.NewStore()
+	vault := clientservice.NewVaultManager(store, dataKey)
+	dto, err := vault.Create(domain.DataTypeText, "", domain.TextPayload{Content: "x"})
+	require.NoError(t, err)
+
+	syncer := clientservice.NewSyncer(adapter, store)
+	_, err = syncer.Sync(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, vault.Delete(dto.ID))
+
+	// "Другое устройство" обновляет запись на сервере ПОСЛЕ нашего локального delete —
+	// по времени сервер новее, но delete всё равно должен победить.
+	current, ok := store.GetRecord(dto.ID)
+	require.True(t, ok)
+	_, err = svc.Push(ctx, "u1", "other-device-key", domain.SyncPushRequest{
+		Records: []domain.RecordDTO{
+			{ID: dto.ID, Type: domain.DataTypeText, Ciphertext: []byte("update-after-our-delete"), Nonce: []byte("n"), BaseVersion: current.Version},
+		},
+	})
+	require.NoError(t, err)
+
+	conflicts, err := syncer.Sync(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, conflicts, "delete must be pushed successfully")
+
+	final, ok := store.GetRecord(dto.ID)
+	require.True(t, ok)
+	assert.True(t, final.IsDeleted, "local delete must win over a newer server update")
+	assert.False(t, final.Dirty)
+
+	all := store.ListRecords()
+	assert.Len(t, all, 2, "the losing server update must be preserved as a conflict-copy, not silently discarded")
+}
+
+// TestSyncer_Conflict_ServerDeleteWinsOverLocalUpdate проверяет delete-wins в обратную
+// сторону: серверное удаление должно победить локальное обновление, а несинхронизированное
+// локальное изменение — сохраниться conflict-копией, а не потеряться молча.
+func TestSyncer_Conflict_ServerDeleteWinsOverLocalUpdate(t *testing.T) {
+	adapter, svc := newSyncSetup("u1")
+	ctx := context.Background()
+	dataKey := newTestDataKey(t)
+
+	store := storage.NewStore()
+	vault := clientservice.NewVaultManager(store, dataKey)
+	dto, err := vault.Create(domain.DataTypeText, "", domain.TextPayload{Content: "x"})
+	require.NoError(t, err)
+
+	syncer := clientservice.NewSyncer(adapter, store)
+	_, err = syncer.Sync(ctx)
+	require.NoError(t, err)
+
+	// "Другое устройство" удаляет запись на сервере.
+	current, ok := store.GetRecord(dto.ID)
+	require.True(t, ok)
+	_, err = svc.Push(ctx, "u1", "other-device-key", domain.SyncPushRequest{
+		Records: []domain.RecordDTO{
+			{ID: dto.ID, Type: domain.DataTypeText, BaseVersion: current.Version, IsDeleted: true},
+		},
+	})
+	require.NoError(t, err)
+
+	// Мы тем временем меняем запись локально, не зная об удалении.
+	_, err = vault.Update(dto.ID, "", domain.TextPayload{Content: "local-update-after-remote-delete"})
+	require.NoError(t, err)
+	localCiphertext, _ := store.GetRecord(dto.ID)
+
+	conflicts, err := syncer.Sync(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, conflicts, "conflict-copy must be pushed as a new record, not left dirty forever")
+
+	final, ok := store.GetRecord(dto.ID)
+	require.True(t, ok)
+	assert.True(t, final.IsDeleted, "server delete must win over a concurrent local update")
+
+	all := store.ListRecords()
+	require.Len(t, all, 2, "the losing local update must be preserved as a conflict-copy")
+	for _, r := range all {
+		if r.ID != dto.ID {
+			assert.Equal(t, localCiphertext.Ciphertext, r.Ciphertext, "conflict-copy must preserve the local update's content")
+		}
+	}
+}
+
 func TestSyncer_DeleteTombstone(t *testing.T) {
 	adapter, _ := newSyncSetup("u1")
 	ctx := context.Background()

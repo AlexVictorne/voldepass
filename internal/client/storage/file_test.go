@@ -39,6 +39,29 @@ func TestFileStore_SaveAndLoad_RoundTrip(t *testing.T) {
 	assert.Equal(t, int64(42), reloaded.LastSyncVersion())
 }
 
+// TestFileStore_DirtyAt_SurvivesReload проверяет, что StoredRecord.DirtyAt (нужен
+// Syncer для LWW-разрешения конфликтов) переживает сохранение/загрузку файла.
+func TestFileStore_DirtyAt_SurvivesReload(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "storage.vp")
+	dataKey := newTestDataKey(t)
+	dirtyAt := time.Date(2026, 7, 27, 12, 0, 0, 0, time.UTC)
+
+	fs := storage.NewFileStore(path)
+	fs.PutRecord(storage.StoredRecord{
+		RecordDTO: domain.RecordDTO{ID: "r1", Ciphertext: []byte("ct")},
+		Dirty:     true,
+		DirtyAt:   dirtyAt,
+	})
+	require.NoError(t, fs.Save(dataKey))
+
+	reloaded := storage.NewFileStore(path)
+	require.NoError(t, reloaded.Load(dataKey))
+
+	got, ok := reloaded.GetRecord("r1")
+	require.True(t, ok)
+	assert.True(t, dirtyAt.Equal(got.DirtyAt), "DirtyAt must survive a save/load round trip")
+}
+
 func TestFileStore_LastSyncAt_SurvivesReload(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "storage.vp")
 	dataKey := newTestDataKey(t)

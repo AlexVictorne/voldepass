@@ -25,8 +25,9 @@ type syncTransport interface {
 }
 
 // Syncer реализует алгоритм синхронизации: Pull (fast-forward/конфликт) →
-// разрешение конфликтов (LWW + conflict-копия) → Push (idempotent, chunked) →
-// повтор при остаточных конфликтах до сходимости.
+// разрешение конфликтов (delete-wins для tombstone-случаев, иначе LWW по
+// серверному UpdatedAt + conflict-копия проигравшей стороны) → Push (idempotent,
+// chunked) → повтор при остаточных конфликтах до сходимости.
 type Syncer struct {
 	transport     syncTransport
 	store         *storage.Store
@@ -99,7 +100,8 @@ func (s *Syncer) sync(ctx context.Context) ([]domain.RecordDTO, error) {
 }
 
 // pull запрашивает изменения с сервера начиная с LastSyncVersion и мержит их
-// в локальное состояние: fast-forward для не-Dirty записей, conflict-копия для Dirty.
+// в локальное состояние: fast-forward для не-Dirty записей, разрешение конфликта
+// для Dirty (см. resolveConflict).
 func (s *Syncer) pull(ctx context.Context) error {
 	resp, err := s.transport.Pull(ctx, s.store.LastSyncVersion())
 	if err != nil {
@@ -111,16 +113,10 @@ func (s *Syncer) pull(ctx context.Context) error {
 		local, exists := s.store.GetRecord(incoming.ID)
 
 		if exists && local.Dirty {
-			// Конфликт: запись изменена локально и на сервере одновременно.
-			// Локальная dirty-версия сохраняется отдельной записью (conflict-копия),
-			// чтобы данные пользователя не терялись; серверная версия принимается как канон.
-			conflictCopy := local
-			conflictCopy.ID = uuid.NewString()
-			conflictCopy.BaseVersion = 0
-			s.store.PutRecord(conflictCopy)
+			s.resolveConflict(local, incoming)
+		} else {
+			s.store.PutRecord(storage.StoredRecord{RecordDTO: incoming, Dirty: false})
 		}
-
-		s.store.PutRecord(storage.StoredRecord{RecordDTO: incoming, Dirty: false})
 
 		if incoming.Version > maxVersion {
 			maxVersion = incoming.Version
@@ -128,6 +124,57 @@ func (s *Syncer) pull(ctx context.Context) error {
 	}
 	s.store.SetLastSyncVersion(maxVersion)
 	return nil
+}
+
+// resolveConflict разрешает конфликт между локально изменённой (Dirty) записью и
+// одновременно изменённой на сервере — согласно стратегии:
+//  1. Delete-wins: если ровно одна из сторон — tombstone (delete), она побеждает
+//     безусловно, независимо от времени изменения (устаревший update не должен
+//     воскрешать удалённую запись, и наоборот — обновление после чужого delete не
+//     должно тихо потеряться, поэтому проигравшая сторона сохраняется conflict-копией).
+//  2. Иначе (оба update, либо оба delete — тривиально совпадают) — LWW по серверному
+//     RecordDTO.UpdatedAt против локального времени изменения (DirtyAt): кто позже,
+//     тот и канон. Проигравшая локальная версия сохраняется conflict-копией только
+//     когда побеждает сервер; если побеждает локальная — она остаётся Dirty и будет
+//     дослана на следующем push (BaseVersion при этом обновляется до серверной
+//     версии, иначе push отклонится сервером как основанный на устаревшей версии).
+func (s *Syncer) resolveConflict(local storage.StoredRecord, incoming domain.RecordDTO) {
+	switch {
+	case local.IsDeleted && !incoming.IsDeleted:
+		// Локальный delete побеждает, но серверный update не должен пропасть бесследно —
+		// сохраняем его отдельной (dirty) записью, чтобы он тоже дошёл до сервера при push.
+		s.saveConflictCopyFromDTO(incoming)
+		local.BaseVersion = incoming.Version
+		s.store.PutRecord(local)
+	case !local.IsDeleted && incoming.IsDeleted:
+		s.saveConflictCopy(local)
+		s.store.PutRecord(storage.StoredRecord{RecordDTO: incoming, Dirty: false})
+	case incoming.UpdatedAt.After(local.DirtyAt):
+		s.saveConflictCopy(local)
+		s.store.PutRecord(storage.StoredRecord{RecordDTO: incoming, Dirty: false})
+	default:
+		local.BaseVersion = incoming.Version
+		s.store.PutRecord(local)
+	}
+}
+
+// saveConflictCopy сохраняет проигравшую локальную dirty-версию отдельной записью
+// (новый ID, BaseVersion сброшен — уйдёт как create при следующем push), чтобы
+// данные пользователя не терялись при разрешении конфликта не в её пользу.
+func (s *Syncer) saveConflictCopy(local storage.StoredRecord) {
+	conflictCopy := local
+	conflictCopy.ID = uuid.NewString()
+	conflictCopy.BaseVersion = 0
+	s.store.PutRecord(conflictCopy)
+}
+
+// saveConflictCopyFromDTO — как saveConflictCopy, но для проигравшей серверной
+// записи (а не локальной): помечается Dirty, чтобы уйти на сервер как новая
+// запись при следующем push, а не остаться только в локальном кэше.
+func (s *Syncer) saveConflictCopyFromDTO(dto domain.RecordDTO) {
+	dto.ID = uuid.NewString()
+	dto.BaseVersion = 0
+	s.store.PutRecord(storage.StoredRecord{RecordDTO: dto, Dirty: true, DirtyAt: time.Now()})
 }
 
 // pushAll отправляет dirty-записи чанками с персистентным idempotency key на чанк.
