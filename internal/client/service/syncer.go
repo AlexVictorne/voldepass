@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -60,6 +61,17 @@ func (s *Syncer) WithMaxIterations(n int) *Syncer {
 // повторяет pull→push до сходимости или исчерпания maxIterations.
 // Возвращает записи, оставшиеся в конфликте после исчерпания попыток.
 func (s *Syncer) Sync(ctx context.Context) ([]domain.RecordDTO, error) {
+	conflicts, err := s.sync(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// Время фиксируется при любом успешном завершении цикла, включая случай,
+	// когда остались неразрешённые конфликты — сама синхронизация (pull+push) прошла.
+	s.store.SetLastSyncAt(time.Now())
+	return conflicts, nil
+}
+
+func (s *Syncer) sync(ctx context.Context) ([]domain.RecordDTO, error) {
 	if err := s.replayPending(ctx); err != nil {
 		return nil, fmt.Errorf("sync: replay pending push: %w", err)
 	}

@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -145,6 +146,12 @@ func (v *VaultManager) Import(records []domain.RecordDTO) {
 		dto.BaseVersion = dto.Version
 		v.store.PutRecord(storage.StoredRecord{RecordDTO: dto, Dirty: true})
 	}
+}
+
+// LastSyncAt возвращает время последней успешной синхронизации, персистированное
+// в локальном хранилище (нулевое значение — синхронизация ещё не выполнялась).
+func (v *VaultManager) LastSyncAt() time.Time {
+	return v.store.LastSyncAt()
 }
 
 // List возвращает все локальные записи, не помеченные как удалённые.

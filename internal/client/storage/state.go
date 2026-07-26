@@ -4,6 +4,7 @@ package storage
 
 import (
 	"sync"
+	"time"
 
 	"github.com/alexvictorne/voldepass/internal/domain"
 )
@@ -42,6 +43,8 @@ type State struct {
 	RefreshToken string `json:"refresh_token"`
 	// LastSyncVersion — курсор последней успешной синхронизации (глобальная версия сервера).
 	LastSyncVersion int64 `json:"last_sync_version"`
+	// LastSyncAt — время последней успешной синхронизации (для отображения в UI, не участвует в протоколе).
+	LastSyncAt time.Time `json:"last_sync_at"`
 	// Records — локальные записи, индексированные по ID.
 	Records map[string]StoredRecord `json:"records"`
 	// PendingPush — незавершённые push-батчи, ожидающие подтверждения сервера.
@@ -101,6 +104,7 @@ func copyState(s State) State {
 		AuthToken:       s.AuthToken,
 		RefreshToken:    s.RefreshToken,
 		LastSyncVersion: s.LastSyncVersion,
+		LastSyncAt:      s.LastSyncAt,
 		Records:         recordsCopy,
 		PendingPush:     pendingCopy,
 	}
@@ -189,6 +193,20 @@ func (s *Store) SetLastSyncVersion(v int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.state.LastSyncVersion = v
+}
+
+// LastSyncAt возвращает время последней успешной синхронизации (нулевое значение — ни разу не синхронизировано).
+func (s *Store) LastSyncAt() time.Time {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.state.LastSyncAt
+}
+
+// SetLastSyncAt обновляет время последней успешной синхронизации.
+func (s *Store) SetLastSyncAt(t time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.state.LastSyncAt = t
 }
 
 // AddPendingPush сохраняет незавершённый push-батч (до получения ACK от сервера).

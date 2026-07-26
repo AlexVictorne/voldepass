@@ -53,6 +53,22 @@ func TestSyncer_PushNewRecords(t *testing.T) {
 	assert.Empty(t, dirty, "record must be marked as synced after push")
 }
 
+func TestSyncer_Sync_RecordsLastSyncAt(t *testing.T) {
+	adapter, _ := newSyncSetup("u1")
+	store := storage.NewStore()
+	dataKey := newTestDataKey(t)
+	vault := clientservice.NewVaultManager(store, dataKey)
+	vault.Create(domain.DataTypeText, "", domain.TextPayload{Content: "hello"})
+
+	assert.True(t, store.LastSyncAt().IsZero(), "must be zero before the first sync")
+
+	syncer := clientservice.NewSyncer(adapter, store)
+	_, err := syncer.Sync(context.Background())
+	require.NoError(t, err)
+
+	assert.False(t, store.LastSyncAt().IsZero(), "successful sync must record a timestamp")
+}
+
 func TestSyncer_PullFastForward(t *testing.T) {
 	adapter, svc := newSyncSetup("u1")
 	ctx := context.Background()

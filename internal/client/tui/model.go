@@ -256,6 +256,7 @@ func (m *Model) handleSessionResult(msg sessionResultMsg) (tea.Model, tea.Cmd) {
 	m.vault = msg.vault
 	m.syncer = msg.syncer
 	m.records = msg.vault.List()
+	m.lastSyncAt = msg.vault.LastSyncAt()
 	m.screen = screenList
 	return m, nil
 }
@@ -268,7 +269,7 @@ func (m *Model) handleSyncResult(msg syncResultMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.err = nil
-	m.lastSyncAt = time.Now()
+	m.lastSyncAt = m.vault.LastSyncAt()
 	m.records = m.vault.List()
 	if m.cursor >= len(m.records) {
 		m.cursor = max(len(m.records)-1, 0)

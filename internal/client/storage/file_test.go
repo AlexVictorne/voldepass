@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,6 +37,22 @@ func TestFileStore_SaveAndLoad_RoundTrip(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, []byte("ct"), got.Ciphertext)
 	assert.Equal(t, int64(42), reloaded.LastSyncVersion())
+}
+
+func TestFileStore_LastSyncAt_SurvivesReload(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "storage.vp")
+	dataKey := newTestDataKey(t)
+
+	fs := storage.NewFileStore(path)
+	assert.True(t, fs.LastSyncAt().IsZero(), "must be zero before any sync")
+
+	syncedAt := time.Date(2026, 7, 27, 12, 30, 0, 0, time.UTC)
+	fs.SetLastSyncAt(syncedAt)
+	require.NoError(t, fs.Save(dataKey))
+
+	reloaded := storage.NewFileStore(path)
+	require.NoError(t, reloaded.Load(dataKey))
+	assert.True(t, syncedAt.Equal(reloaded.LastSyncAt()), "last sync time must survive a save/load round trip")
 }
 
 func TestFileStore_Load_MissingFile(t *testing.T) {
