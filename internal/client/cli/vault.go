@@ -107,11 +107,21 @@ func runAdd(ctx context.Context, cfg clientcfg.Config, login, password string, d
 	return nil
 }
 
-// runList открывает сессию и печатает список записей (ID, тип, meta) без расшифровки payload.
+// runList открывает сессию, синхронизирует локальный кэш с сервером и печатает
+// список записей (ID, тип, meta) без расшифровки payload. Синхронизация перед
+// выводом гарантирует, что список отражает изменения с других устройств.
 func runList(ctx context.Context, cfg clientcfg.Config, login, password string, out io.Writer) error {
 	b, err := openSession(ctx, cfg, login, password)
 	if err != nil {
 		return fmt.Errorf("list: %w", err)
+	}
+
+	conflicts, err := b.syncer.Sync(ctx)
+	if err != nil {
+		return fmt.Errorf("list: sync: %w", err)
+	}
+	if len(conflicts) > 0 {
+		fmt.Fprintf(out, "warning: sync completed with %d unresolved conflict(s)\n", len(conflicts))
 	}
 
 	for _, dto := range b.vault.List() {

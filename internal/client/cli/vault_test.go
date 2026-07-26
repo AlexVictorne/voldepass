@@ -96,6 +96,27 @@ func TestRunAddGetListDelete_Credentials(t *testing.T) {
 	assert.NotContains(t, listOut2.String(), id, "deleted record must not appear in list")
 }
 
+func TestRunList_SyncsBeforePrinting(t *testing.T) {
+	srv := newLiveServer(t)
+	defer srv.Close()
+	ctx := context.Background()
+
+	cfgA := testConfig(srv, filepath.Join(t.TempDir(), "device-a.vp"))
+	require.NoError(t, runRegister(ctx, cfgA, "alice", "master-password", &bytes.Buffer{}))
+
+	// "Другое устройство": свой локальный файл, тот же аккаунт.
+	cfgB := testConfig(srv, filepath.Join(t.TempDir(), "device-b.vp"))
+	var addOut bytes.Buffer
+	f := payloadFlags{content: "from device B"}
+	require.NoError(t, runAdd(ctx, cfgB, "alice", "master-password", domain.DataTypeText, f, &addOut))
+
+	// list на первом устройстве не видел это изменение локально — должен подтянуть его через sync.
+	var listOut bytes.Buffer
+	require.NoError(t, runList(ctx, cfgA, "alice", "master-password", &listOut))
+	id := extractRecordID(t, addOut.String())
+	assert.Contains(t, listOut.String(), id, "list must sync remote changes before printing")
+}
+
 func TestRunEdit_UpdatesPayload(t *testing.T) {
 	srv := newLiveServer(t)
 	defer srv.Close()
