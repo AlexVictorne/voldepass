@@ -15,12 +15,18 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.25.3"
           cache: true
 
       # ── Статический анализ ──────────────────────────────────────────────
+      # golangci-lint-action@v6 resolves "latest" to a stale cached release
+      # (v1.64.8, built with go1.24) that refuses to lint a go1.25.3 module
+      # ("the Go language version used to build golangci-lint is lower than
+      # the targeted Go version"). v8 resolves "latest" against current
+      # releases, which are built with a Go toolchain new enough for go.mod's
+      # declared version.
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
         with:
           version: latest
 
