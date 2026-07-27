@@ -7,7 +7,8 @@
 ##   all             — lint + test + cover
 ##   build           — собрать оба бинаря
 ##   gen             — кодогенерация (swag, mockery, stringer)
-##   lint            — статический анализ
+##   lint            — статический анализ (включает check-migrations)
+##   check-migrations — проверка, что migrations/ и internal/.../postgres/migrations/ идентичны
 ##   test            — юнит-тесты + функциональные (-race)
 ##   test-integration — интеграционные тесты (требует Docker)
 ##   test-e2e        — smoke / e2e тесты
@@ -36,7 +37,7 @@ PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
 DATABASE_URL ?= postgres://voldepass:voldepass@localhost:5432/voldepass?sslmode=disable
 
 .PHONY: all build build-server build-client build-all-platforms \
-        gen lint test test-integration test-e2e test-all cover ci \
+        gen lint check-migrations test test-integration test-e2e test-all cover ci \
         up down migrate-up migrate-down clean
 
 ## all: lint + test + покрытие
@@ -68,11 +69,22 @@ gen:
 	go run github.com/swaggo/swag/cmd/swag@v1.16.4 init -g cmd/server/main.go -o api/openapi --parseInternal --parseDependency
 
 ## lint: статический анализ (golangci-lint, go vet, govulncheck, go mod verify)
-lint:
+lint: check-migrations
 	golangci-lint run ./...
 	go vet ./...
 	go mod verify
 	@which govulncheck > /dev/null 2>&1 && govulncheck ./... || echo "govulncheck not installed, skipping"
+
+## check-migrations: ./migrations (для CLI golang-migrate) и internal/server/storage/postgres/migrations
+## (вкомпилирована в сервер через go:embed — go:embed не умеет ссылаться за пределы своего пакета,
+## отсюда два одинаковых набора файлов) должны быть побайтово идентичны.
+check-migrations:
+	@diff -rq migrations/ internal/server/storage/postgres/migrations/ > /dev/null || { \
+		echo "error: migrations/ and internal/server/storage/postgres/migrations/ are out of sync:"; \
+		diff -rq migrations/ internal/server/storage/postgres/migrations/; \
+		echo "fix: copy the missing/changed .sql file(s) to keep both directories identical"; \
+		exit 1; \
+	}
 
 ## test: юнит-тесты и функциональные тесты с race-detector и coverprofile
 test:
@@ -99,8 +111,8 @@ cover:
 	fi
 	go tool cover -html=coverage.out -o coverage.html
 
-## ci: режим CI — lint + test + test-integration
-ci: lint test cover test-integration
+## ci: режим CI — lint + test + test-integration + test-e2e
+ci: lint test cover test-integration test-e2e
 
 ## up: запустить PostgreSQL через docker-compose
 up:

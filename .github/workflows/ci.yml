@@ -33,6 +33,11 @@ jobs:
       - name: go vet
         run: go vet ./...
 
+      # migrations/ (для CLI golang-migrate) и internal/server/storage/postgres/migrations/
+      # (вкомпилирована в сервер через go:embed) должны быть побайтово идентичны.
+      - name: check migrations are in sync
+        run: make check-migrations
+
       - name: go mod verify
         run: go mod verify
 
@@ -55,10 +60,10 @@ jobs:
           fi
 
       # ── Интеграционные тесты ────────────────────────────────────────────
+      # test/integration поднимает свой собственный PostgreSQL через
+      # testcontainers (см. test/integration/main_test.go) — внешний DSN не нужен.
       - name: integration tests
         run: go test -v -count=1 -tags=integration -race ./test/integration/...
-        env:
-          VOLDEPASS_DATABASE_URL: postgres://voldepass:voldepass@localhost:5432/voldepass?sslmode=disable
 
       # ── E2E/smoke-тесты ─────────────────────────────────────────────────
       - name: e2e smoke tests
