@@ -56,6 +56,60 @@ func TestTUI_Teatest_LoginAddAndQuit(t *testing.T) {
 	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
 }
 
+// TestTUI_Teatest_EditAndDeleteThroughRealRunner прогоняет через настоящий
+// bubbletea event loop полный жизненный цикл записи: добавление → редактирование
+// (с предзаполненной формой) → просмотр обновлённого значения → удаление с
+// подтверждением → список снова пуст. Проверяет, что реальная маршрутизация
+// клавиш 'e'/'d'/'y' и переиспользование screenAddForm в режиме редактирования
+// работают через настоящий раннер, а не только через прямые вызовы Update().
+func TestTUI_Teatest_EditAndDeleteThroughRealRunner(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
+		v.Create(domain.DataTypeText, "my-note", domain.TextPayload{Content: "original content"})
+	})
+
+	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(100, 30))
+
+	tm.Type("alice")
+	tm.Send(tea.KeyMsg{Type: tea.KeyTab})
+	tm.Type("master-password")
+	tm.Send(tea.KeyMsg{Type: tea.KeyEnter})
+
+	waitForOutput(t, tm, "text: my-note")
+
+	// Открываем детали и правим запись.
+	tm.Send(tea.KeyMsg{Type: tea.KeyEnter})
+	waitForOutput(t, tm, "original content")
+
+	tm.Send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
+	waitForOutput(t, tm, "Edit text record")
+
+	tm.Send(tea.KeyMsg{Type: tea.KeyTab}) // meta -> content
+	for range "original content" {
+		tm.Send(tea.KeyMsg{Type: tea.KeyBackspace})
+	}
+	tm.Type("updated content")
+	tm.Send(tea.KeyMsg{Type: tea.KeyEnter}) // сабмит
+
+	waitForOutput(t, tm, "text: my-note")
+
+	// Открываем детали снова и убеждаемся, что новое значение реально сохранилось.
+	tm.Send(tea.KeyMsg{Type: tea.KeyEnter})
+	waitForOutput(t, tm, "updated content")
+	tm.Send(tea.KeyMsg{Type: tea.KeyEsc})
+	waitForOutput(t, tm, "text: my-note")
+
+	// Удаляем с подтверждением.
+	tm.Send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	waitForOutput(t, tm, "delete")
+
+	tm.Send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
+	waitForOutput(t, tm, "no records")
+
+	tm.Send(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
+	tm.WaitFinished(t, teatest.WithFinalTimeout(3*time.Second))
+}
+
 // waitForOutput ждёт, пока вывод программы не начнёт содержать needle, с разумным таймаутом.
 func waitForOutput(t *testing.T, tm *teatest.TestModel, needle string) {
 	t.Helper()

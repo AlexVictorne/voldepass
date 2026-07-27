@@ -577,3 +577,212 @@ func TestModel_AddForm_NewRecordGetsMetaLabelInList(t *testing.T) {
 	require.Len(t, m.recordLabels, 1)
 	assert.Contains(t, m.recordLabels[0], "my-note")
 }
+
+// ── Delete ──────────────────────────────────────────────────────────────────
+
+func TestModel_List_DeleteKey_ShowsConfirmation(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
+		v.Create(domain.DataTypeText, "my-note", domain.TextPayload{Content: "x"})
+	})
+	m = loginViaEnter(t, m)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	m = updated.(*Model)
+
+	assert.Equal(t, m.records[0].ID, m.confirmDeleteID)
+	assert.Contains(t, m.viewList(), "my-note")
+	assert.Contains(t, m.viewList(), "(y/n)")
+	require.Len(t, m.records, 1, "record must not be deleted until confirmed")
+}
+
+func TestModel_List_DeleteKey_EmptyListIsNoop(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, nil)
+	m = loginViaEnter(t, m)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	m = updated.(*Model)
+
+	assert.Empty(t, m.confirmDeleteID)
+}
+
+func TestModel_DeleteConfirm_Yes_DeletesRecord(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
+		v.Create(domain.DataTypeText, "my-note", domain.TextPayload{Content: "x"})
+	})
+	m = loginViaEnter(t, m)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	m = updated.(*Model)
+	require.NotEmpty(t, m.confirmDeleteID)
+
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
+	m = updated.(*Model)
+
+	assert.Empty(t, m.confirmDeleteID)
+	assert.Empty(t, m.records, "record must be gone from the list after confirmed delete")
+}
+
+func TestModel_DeleteConfirm_AnyOtherKey_Cancels(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
+		v.Create(domain.DataTypeText, "my-note", domain.TextPayload{Content: "x"})
+	})
+	m = loginViaEnter(t, m)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	m = updated.(*Model)
+	require.NotEmpty(t, m.confirmDeleteID)
+
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	m = updated.(*Model)
+
+	assert.Empty(t, m.confirmDeleteID)
+	require.Len(t, m.records, 1, "record must survive a non-'y' response")
+}
+
+func TestModel_DeleteConfirm_ClampsCursorWhenLastRecordDeleted(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
+		v.Create(domain.DataTypeText, "a", domain.TextPayload{Content: "a"})
+		v.Create(domain.DataTypeText, "b", domain.TextPayload{Content: "b"})
+	})
+	m = loginViaEnter(t, m)
+	m.cursor = 1 // последняя запись
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	m = updated.(*Model)
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
+	m = updated.(*Model)
+
+	require.Len(t, m.records, 1)
+	assert.Equal(t, 0, m.cursor, "cursor must clamp to the last remaining index")
+}
+
+// ── Edit ────────────────────────────────────────────────────────────────────
+
+func TestModel_Detail_EditKey_OpensPrefilledForm(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
+		v.Create(domain.DataTypeCredentials, "gmail", domain.CredentialsPayload{Login: "alice", Password: "s3cret"})
+	})
+	m = loginViaEnter(t, m)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter}) // open detail
+	m = updated.(*Model)
+	require.Equal(t, screenDetail, m.screen)
+
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
+	m = updated.(*Model)
+
+	require.Equal(t, screenAddForm, m.screen)
+	assert.Equal(t, m.records[0].ID, m.editingID)
+	assert.Equal(t, "gmail", m.addFields[0].input.Value())
+	assert.Equal(t, "alice", m.addFields[1].input.Value())
+	assert.Equal(t, "s3cret", m.addFields[2].input.Value())
+	assert.Contains(t, m.viewAddForm(), "Edit credentials record")
+}
+
+func TestModel_Edit_Submit_UpdatesExistingRecordInPlace(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
+		v.Create(domain.DataTypeText, "note", domain.TextPayload{Content: "v1"})
+	})
+	m = loginViaEnter(t, m)
+	originalID := m.records[0].ID
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter}) // detail
+	m = updated.(*Model)
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
+	m = updated.(*Model)
+	require.Equal(t, screenAddForm, m.screen)
+
+	// Переходим на поле content (индекс 1), стираем старое значение "v1" и
+	// вводим новое, затем сабмитим (Enter на последнем поле).
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m = updated.(*Model)
+	for range "v1" {
+		updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+		m = updated.(*Model)
+	}
+	m = sendRunes(m, "v2-edited")
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(*Model)
+
+	require.Equal(t, screenList, m.screen)
+	require.Len(t, m.records, 1, "edit must not create a second record")
+	assert.Equal(t, originalID, m.records[0].ID, "edit must preserve the record's ID")
+
+	var payload domain.TextPayload
+	_, _, err := m.vault.Get(originalID, &payload)
+	require.NoError(t, err)
+	assert.Equal(t, "v2-edited", payload.Content)
+}
+
+func TestModel_Edit_EscCancel_LeavesRecordUnchanged(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
+		v.Create(domain.DataTypeText, "note", domain.TextPayload{Content: "original"})
+	})
+	m = loginViaEnter(t, m)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(*Model)
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
+	m = updated.(*Model)
+	require.Equal(t, screenAddForm, m.screen)
+
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = updated.(*Model)
+
+	assert.Equal(t, screenList, m.screen)
+	assert.Empty(t, m.editingID)
+
+	var payload domain.TextPayload
+	_, _, err := m.vault.Get(m.records[0].ID, &payload)
+	require.NoError(t, err)
+	assert.Equal(t, "original", payload.Content, "cancelling edit must not touch the record")
+}
+
+func TestModel_Edit_OTP_PrefillsAllFields(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
+		v.Create(domain.DataTypeOTP, "gh", domain.OTPPayload{
+			Secret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", Issuer: "GitHub", Account: "alice",
+			Algorithm: "SHA256", Digits: 8, Period: 60,
+		})
+	})
+	m = loginViaEnter(t, m)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(*Model)
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
+	m = updated.(*Model)
+
+	require.Equal(t, screenAddForm, m.screen)
+	assert.Equal(t, "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", m.addFields[1].input.Value())
+	assert.Equal(t, "GitHub", m.addFields[2].input.Value())
+	assert.Equal(t, "alice", m.addFields[3].input.Value())
+	assert.Equal(t, "SHA256", m.addFields[4].input.Value())
+	assert.Equal(t, "8", m.addFields[5].input.Value())
+	assert.Equal(t, "60", m.addFields[6].input.Value())
+}
+
+func TestModel_Edit_Binary_Prefills(t *testing.T) {
+	dataKey := testDataKey(t)
+	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
+		v.Create(domain.DataTypeBinary, "file", domain.BinaryPayload{Data: []byte("raw-bytes"), Filename: "note.txt"})
+	})
+	m = loginViaEnter(t, m)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = updated.(*Model)
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
+	m = updated.(*Model)
+
+	require.Equal(t, screenAddForm, m.screen)
+	assert.Equal(t, "raw-bytes", m.addFields[1].input.Value())
+	assert.Equal(t, "note.txt", m.addFields[2].input.Value())
+}

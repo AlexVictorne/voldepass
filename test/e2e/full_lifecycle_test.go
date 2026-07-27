@@ -115,8 +115,25 @@ func TestE2E_FullLifecycle_RealProcesses(t *testing.T) {
 	assert.Contains(t, listOut, "e2e-note", "list must show the record's meta label, output: %s", listOut)
 	assert.Contains(t, listOut, "text", "list must show the record's type, output: %s", listOut)
 
-	getOut := runClient(t, clientBin, password, append([]string{"get", "--id", extractRecordID(t, addOut)}, commonArgs...)...)
+	recordID := extractRecordID(t, addOut)
+	getOut := runClient(t, clientBin, password, append([]string{"get", "--id", recordID}, commonArgs...)...)
 	assert.Contains(t, getOut, "hello from e2e", "get must decrypt the payload round-trip, output: %s", getOut)
+
+	editArgs := append([]string{"edit", "--id", recordID, "--type", "text", "--content", "edited via e2e", "--meta", "e2e-note-edited"}, commonArgs...)
+	editOut := runClient(t, clientBin, password, editArgs...)
+	assert.Contains(t, editOut, "updated record", "edit output: %s", editOut)
+
+	getAfterEditOut := runClient(t, clientBin, password, append([]string{"get", "--id", recordID}, commonArgs...)...)
+	assert.Contains(t, getAfterEditOut, "edited via e2e", "get after edit must reflect the new payload, output: %s", getAfterEditOut)
+
+	listAfterEditOut := runClient(t, clientBin, password, append([]string{"list"}, commonArgs...)...)
+	assert.Contains(t, listAfterEditOut, "e2e-note-edited", "list must show the updated meta label, output: %s", listAfterEditOut)
+
+	deleteOut := runClient(t, clientBin, password, append([]string{"delete", "--id", recordID}, commonArgs...)...)
+	assert.Contains(t, deleteOut, "deleted record", "delete output: %s", deleteOut)
+
+	listAfterDeleteOut := runClient(t, clientBin, password, append([]string{"list"}, commonArgs...)...)
+	assert.NotContains(t, listAfterDeleteOut, recordID, "list must not show the deleted record, output: %s", listAfterDeleteOut)
 }
 
 // extractRecordID парсит "created record <id>" из вывода команды add.

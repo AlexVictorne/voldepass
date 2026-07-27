@@ -190,6 +190,14 @@ type Model struct {
 	addDataType   domain.DataType
 	addFields     []addFormField
 	addFocus      int
+	// editingID — непусто, если screenAddForm сейчас редактирует существующую
+	// запись (submitAddForm вызовет vault.Update вместо vault.Create).
+	editingID string
+
+	// confirmDeleteID/confirmDeleteLabel — непусто, пока экран списка ждёт
+	// подтверждения удаления (y/n) выбранной записи.
+	confirmDeleteID    string
+	confirmDeleteLabel string
 }
 
 // NewModel создаёт начальную модель на экране логина.
@@ -351,6 +359,10 @@ func (m *Model) applyFocus() {
 
 // updateList обрабатывает навигацию по списку записей.
 func (m *Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.confirmDeleteID != "" {
+		return m.updateDeleteConfirm(msg)
+	}
+
 	switch msg.String() {
 	case "ctrl+c", "q":
 		m.quitting = true
@@ -382,9 +394,42 @@ func (m *Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, otpTickCmd()
 	case "n":
 		m.err = nil
+		m.editingID = ""
 		m.addTypeCursor = 0
 		m.screen = screenAddType
 		return m, nil
+	case "d":
+		if len(m.records) == 0 {
+			return m, nil
+		}
+		m.err = nil
+		m.confirmDeleteID = m.records[m.cursor].ID
+		m.confirmDeleteLabel = m.recordLabels[m.cursor]
+		return m, nil
+	}
+	return m, nil
+}
+
+// updateDeleteConfirm обрабатывает подтверждение удаления (y/n) на экране списка.
+// Любая клавиша, кроме "y", отменяет удаление — это осознанно консервативно для
+// деструктивного действия.
+func (m *Model) updateDeleteConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	id := m.confirmDeleteID
+	m.confirmDeleteID = ""
+	m.confirmDeleteLabel = ""
+
+	if msg.String() != "y" {
+		return m, nil
+	}
+
+	if err := m.vault.Delete(id); err != nil {
+		m.err = err
+		return m, nil
+	}
+	m.err = nil
+	m.refreshRecords()
+	if m.cursor >= len(m.records) {
+		m.cursor = max(len(m.records)-1, 0)
 	}
 	return m, nil
 }
@@ -420,6 +465,7 @@ func (m *Model) updateAddForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyCtrlC, tea.KeyEsc:
 		m.addFields = nil
+		m.editingID = ""
 		m.screen = screenList
 		return m, nil
 	case tea.KeyTab, tea.KeyDown:
@@ -449,21 +495,31 @@ func (m *Model) updateAddForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// submitAddForm собирает payload из формы, создаёт запись через VaultManager
-// и возвращается к списку. Create — чисто локальная операция (шифрование +
-// запись в локальное хранилище), поэтому вызывается синхронно, без tea.Cmd;
-// отправка на сервер происходит отдельно, по 's' (см. syncCmd).
+// submitAddForm собирает payload из формы и создаёт/обновляет запись через
+// VaultManager (Update, если editingID непусто — форма открыта в режиме
+// редактирования, иначе Create), затем возвращается к списку. Обе операции
+// чисто локальные (шифрование + запись в локальное хранилище), поэтому
+// вызываются синхронно, без tea.Cmd; отправка на сервер происходит отдельно,
+// по 's' (см. syncCmd).
 func (m *Model) submitAddForm() (tea.Model, tea.Cmd) {
 	meta, payload, err := buildAddPayload(m.addDataType, m.addFields)
 	if err != nil {
 		m.err = err
 		return m, nil
 	}
-	if _, err := m.vault.Create(m.addDataType, meta, payload); err != nil {
+
+	if m.editingID != "" {
+		if _, err := m.vault.Update(m.editingID, meta, payload); err != nil {
+			m.err = err
+			return m, nil
+		}
+	} else if _, err := m.vault.Create(m.addDataType, meta, payload); err != nil {
 		m.err = err
 		return m, nil
 	}
+
 	m.err = nil
+	m.editingID = ""
 	m.refreshRecords()
 	m.addFields = nil
 	m.screen = screenList
@@ -532,8 +588,68 @@ func (m *Model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc", "b":
 		m.screen = screenList
 		return m, nil
+	case "e":
+		if len(m.records) == 0 {
+			return m, nil
+		}
+		m.startEdit(m.records[m.cursor])
+		return m, nil
 	}
 	return m, nil
+}
+
+// startEdit расшифровывает выбранную запись и открывает screenAddForm,
+// предзаполненный текущими значениями — submitAddForm определит по editingID,
+// что нужно вызвать vault.Update, а не vault.Create.
+func (m *Model) startEdit(dto domain.RecordDTO) {
+	target := newPayloadTarget(dto.Type)
+	meta, _, err := m.vault.Get(dto.ID, target)
+	if err != nil {
+		m.err = err
+		return
+	}
+	m.err = nil
+	m.editingID = dto.ID
+	m.addDataType = dto.Type
+	m.addFields = buildAddFormFields(dto.Type)
+	populateEditFields(m.addFields, meta, target)
+	m.addFocus = 0
+	m.addFields[0].input.Focus()
+	m.screen = screenAddForm
+}
+
+// populateEditFields заполняет поля формы текущими расшифрованными значениями
+// записи — обратная операция к buildAddPayload. fields[0] — всегда meta.
+func populateEditFields(fields []addFormField, meta string, target any) {
+	fields[0].input.SetValue(meta)
+	v := fields[1:]
+
+	switch t := target.(type) {
+	case *domain.CredentialsPayload:
+		v[0].input.SetValue(t.Login)
+		v[1].input.SetValue(t.Password)
+	case *domain.TextPayload:
+		v[0].input.SetValue(t.Content)
+	case *domain.BinaryPayload:
+		v[0].input.SetValue(string(t.Data))
+		v[1].input.SetValue(t.Filename)
+	case *domain.CardPayload:
+		v[0].input.SetValue(t.Number)
+		v[1].input.SetValue(t.Holder)
+		v[2].input.SetValue(t.Expiry)
+		v[3].input.SetValue(t.CVV)
+	case *domain.OTPPayload:
+		v[0].input.SetValue(t.Secret)
+		v[1].input.SetValue(t.Issuer)
+		v[2].input.SetValue(t.Account)
+		v[3].input.SetValue(t.Algorithm)
+		if t.Digits != 0 {
+			v[4].input.SetValue(strconv.Itoa(t.Digits))
+		}
+		if t.Period != 0 {
+			v[5].input.SetValue(strconv.Itoa(t.Period))
+		}
+	}
 }
 
 // otpTickCmd планирует следующий пересчёт TOTP через otpTickInterval.
@@ -591,7 +707,9 @@ func (m *Model) viewList() string {
 		}
 		s += fmt.Sprintf("%s%s\n", cursor, m.recordLabels[i])
 	}
-	if m.syncing {
+	if m.confirmDeleteID != "" {
+		s += fmt.Sprintf("\ndelete %q? (y/n)\n", m.confirmDeleteLabel)
+	} else if m.syncing {
 		s += "\nsyncing...\n"
 	} else if !m.lastSyncAt.IsZero() {
 		s += fmt.Sprintf("\nlast sync: %s\n", m.lastSyncAt.Format("2006-01-02 15:04:05"))
@@ -601,7 +719,7 @@ func (m *Model) viewList() string {
 	if m.err != nil {
 		s += fmt.Sprintf("\nerror: %v\n", m.err)
 	}
-	s += "\n(up/down to navigate, enter to view, n to add, s to sync, q to quit)"
+	s += "\n(up/down to navigate, enter to view, n to add, d to delete, s to sync, q to quit)"
 	return s
 }
 
@@ -619,7 +737,11 @@ func (m *Model) viewAddType() string {
 }
 
 func (m *Model) viewAddForm() string {
-	s := fmt.Sprintf("Add %v record\n\n", m.addDataType)
+	verb := "Add"
+	if m.editingID != "" {
+		verb = "Edit"
+	}
+	s := fmt.Sprintf("%s %v record\n\n", verb, m.addDataType)
 	for i, f := range m.addFields {
 		marker := "  "
 		if i == m.addFocus {
@@ -639,7 +761,7 @@ func (m *Model) viewDetail() string {
 	if m.otpCode != "" {
 		s += fmt.Sprintf("\nTOTP: %s\n", m.otpCode)
 	}
-	s += "\n(esc to go back, q to quit)"
+	s += "\n(esc to go back, e to edit, q to quit)"
 	return s
 }
 
@@ -654,6 +776,8 @@ func newPayloadTarget(dataType domain.DataType) any {
 		return &domain.CardPayload{}
 	case domain.DataTypeOTP:
 		return &domain.OTPPayload{}
+	case domain.DataTypeBinary:
+		return &domain.BinaryPayload{}
 	default:
 		return &map[string]any{}
 	}
