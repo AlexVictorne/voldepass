@@ -228,6 +228,61 @@ func TestRouter_Register_InvalidBody(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
+// TestRouter_Register_OversizedBody проверяет лимит тела запроса для auth-эндпоинтов
+// (Register/Challenge/Refresh — доступны без авторизации, поэтому особенно важно отсекать
+// произвольно большие тела до их вычитывания в память, см. maxAuthRequestBodyBytes).
+func TestRouter_Register_OversizedBody(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.Close()
+
+	oversized := bytes.Repeat([]byte("a"), 64*1024+1)
+	resp, err := http.Post(srv.URL+"/api/v1/register", "application/json", bytes.NewReader(oversized))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "body over the auth request limit must be rejected")
+}
+
+// TestRouter_RecordCreate_OversizedBody проверяет лимит тела для Create/Update
+// (maxRecordRequestBodyBytes) — записи несут реальный полезный груз (ciphertext,
+// в т.ч. Binary-вложения), поэтому лимит выше, чем для auth-эндпоинтов, но всё ещё ограничен.
+func TestRouter_RecordCreate_OversizedBody(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.Close()
+	token := registerAndLogin(t, srv.URL, "alice", "master-password")
+
+	oversized := bytes.Repeat([]byte("a"), 10<<20+1)
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/records", bytes.NewReader(oversized))
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "body over the record request limit must be rejected")
+}
+
+// TestRouter_SyncPush_OversizedBody проверяет лимит тела для Push-батча
+// (maxSyncPushRequestBodyBytes) — самый большой из трёх, т.к. несёт пачку записей
+// (клиент по умолчанию чанкует по 100 записей за раз).
+func TestRouter_SyncPush_OversizedBody(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.Close()
+	token := registerAndLogin(t, srv.URL, "alice", "master-password")
+
+	oversized := bytes.Repeat([]byte("a"), 50<<20+1)
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/sync", bytes.NewReader(oversized))
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Idempotency-Key", "oversized-body-key")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "body over the sync push request limit must be rejected")
+}
+
 func TestRouter_Login_InvalidBody(t *testing.T) {
 	srv := newTestServer(t)
 	defer srv.Close()

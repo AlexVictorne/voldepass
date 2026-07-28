@@ -52,6 +52,8 @@ type registerRequest struct {
 //	@Failure		409		{object}	errorResponse	"login already taken"
 //	@Router			/register [post]
 func (h *AuthHandlers) Register(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxAuthRequestBodyBytes)
+
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(h.log, w, domain.ErrInvalidArgument)
@@ -102,6 +104,8 @@ type challengeResponse struct {
 //	@Failure		404		{object}	errorResponse	"unknown login"
 //	@Router			/login/challenge [post]
 func (h *AuthHandlers) Challenge(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxAuthRequestBodyBytes)
+
 	var req challengeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(h.log, w, domain.ErrInvalidArgument)
@@ -179,6 +183,8 @@ type refreshRequest struct {
 //	@Failure		401		{object}	errorResponse	"expired, unknown, or reused token"
 //	@Router			/refresh [post]
 func (h *AuthHandlers) Refresh(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxAuthRequestBodyBytes)
+
 	var req refreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(h.log, w, domain.ErrInvalidArgument)

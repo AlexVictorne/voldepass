@@ -96,6 +96,8 @@ func (h *SyncHandlers) Push(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxSyncPushRequestBodyBytes)
+
 	var req domain.SyncPushRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(h.log, w, domain.ErrInvalidArgument)

@@ -76,6 +76,8 @@ func (h *VaultHandlers) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxRecordRequestBodyBytes)
+
 	var req recordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(h.log, w, domain.ErrInvalidArgument)
@@ -199,6 +201,8 @@ func (h *VaultHandlers) Update(w http.ResponseWriter, r *http.Request) {
 		writeError(h.log, w, err)
 		return
 	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxRecordRequestBodyBytes)
 
 	var req recordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

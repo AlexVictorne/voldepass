@@ -80,6 +80,26 @@ func RequestLogger(log zerolog.Logger) func(http.Handler) http.Handler {
 // произвольно большое тело и заставить сервер вычитать его целиком до валидации.
 const maxLoginRequestBodyBytes = 1 << 20 // 1 MiB — с большим запасом на реальный login-запрос
 
+// Лимиты тела запроса для остальных JSON-эндпоинтов — без них json.NewDecoder вычитывает
+// r.Body в память целиком, произвольного размера, до какой-либо валидации содержимого
+// (см. README, раздел "Лимиты размера запроса").
+const (
+	// maxAuthRequestBodyBytes — Register/Challenge/Refresh не требуют авторизации, поэтому
+	// доступны анонимно; их payload — только KDF-параметры и ключевой материал фиксированного
+	// небольшого размера (verifier/salt/wrapped key — десятки байт), 64 KiB — щедрый запас.
+	maxAuthRequestBodyBytes = 64 << 10 // 64 KiB
+
+	// maxRecordRequestBodyBytes — тело одной записи (Create/Update). Основная часть —
+	// ciphertext; для типа Binary это может быть небольшое вложение (файл/картинка),
+	// поэтому лимит заметно выше, чем для auth-эндпоинтов.
+	maxRecordRequestBodyBytes = 10 << 20 // 10 MiB
+
+	// maxSyncPushRequestBodyBytes — пачка записей за один push (клиент по умолчанию шлёт
+	// чанками по 100 записей, см. defaultChunkSize в client/service/syncer.go), поэтому
+	// лимит батча выше, чем для одной записи, но всё ещё ограничен.
+	maxSyncPushRequestBodyBytes = 50 << 20 // 50 MiB
+)
+
 // LoginRateLimit возвращает middleware, отклоняющее запрос 429-м до вызова хендлера,
 // если LoginAttemptTracker.Allowed говорит, что логин уже превысил лимит попыток —
 // это позволяет отсечь превышающие лимит запросы максимально рано, ещё до разбора
