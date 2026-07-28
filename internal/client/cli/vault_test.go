@@ -33,6 +33,7 @@ func TestNewPayloadTarget(t *testing.T) {
 	assert.IsType(t, &domain.TextPayload{}, newPayloadTarget(domain.DataTypeText))
 	assert.IsType(t, &domain.CardPayload{}, newPayloadTarget(domain.DataTypeCard))
 	assert.IsType(t, &domain.OTPPayload{}, newPayloadTarget(domain.DataTypeOTP))
+	assert.IsType(t, &domain.BinaryPayload{}, newPayloadTarget(domain.DataTypeBinary))
 	assert.IsType(t, &map[string]any{}, newPayloadTarget(domain.DataTypeUnknown))
 }
 
@@ -41,6 +42,7 @@ func TestBuildPayload(t *testing.T) {
 		login: "u", password: "p", content: "c",
 		number: "n", holder: "h", expiry: "e", cvv: "v",
 		secret: "s", issuer: "i", account: "a", algorithm: "SHA1", digits: 6, period: 30,
+		filename: "f.bin",
 	}
 
 	cred, err := buildPayload(domain.DataTypeCredentials, f)
@@ -51,6 +53,10 @@ func TestBuildPayload(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, domain.TextPayload{Content: "c"}, text)
 
+	binary, err := buildPayload(domain.DataTypeBinary, f)
+	require.NoError(t, err)
+	assert.Equal(t, domain.BinaryPayload{Data: []byte("c"), Filename: "f.bin"}, binary)
+
 	card, err := buildPayload(domain.DataTypeCard, f)
 	require.NoError(t, err)
 	assert.Equal(t, domain.CardPayload{Number: "n", Holder: "h", Expiry: "e", CVV: "v"}, card)
@@ -59,8 +65,8 @@ func TestBuildPayload(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, domain.OTPPayload{Secret: "s", Issuer: "i", Account: "a", Algorithm: "SHA1", Digits: 6, Period: 30}, otp)
 
-	_, err = buildPayload(domain.DataTypeBinary, f)
-	assert.Error(t, err, "binary type has no CLI payload builder yet")
+	_, err = buildPayload(domain.DataTypeUnknown, f)
+	assert.Error(t, err, "unknown type has no CLI payload builder")
 }
 
 func TestRunAddGetListDelete_Credentials(t *testing.T) {

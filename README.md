@@ -130,6 +130,7 @@ export VOLDEPASS_JWT_SECRET=$(openssl rand -hex 32)
 export VOLDEPASS_LOGIN=alice
 ./bin/voldepass-client register            # запросит мастер-пароль
 ./bin/voldepass-client add --type text --content "note" --meta "personal"
+./bin/voldepass-client add --type binary --content "raw bytes" --filename "key.bin" --meta "backup key"
 ./bin/voldepass-client list
 ./bin/voldepass-client sync
 ./bin/voldepass-client otp get --id <record-id>

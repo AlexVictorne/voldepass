@@ -29,6 +29,7 @@ type payloadFlags struct {
 	algorithm string
 	digits    int
 	period    int
+	filename  string
 }
 
 // buildPayload конструирует конкретный payload-тип по dataType и заполненным флагам.
@@ -38,6 +39,8 @@ func buildPayload(dataType domain.DataType, f payloadFlags) (any, error) {
 		return domain.CredentialsPayload{Login: f.login, Password: f.password}, nil
 	case domain.DataTypeText:
 		return domain.TextPayload{Content: f.content}, nil
+	case domain.DataTypeBinary:
+		return domain.BinaryPayload{Data: []byte(f.content), Filename: f.filename}, nil
 	case domain.DataTypeCard:
 		return domain.CardPayload{Number: f.number, Holder: f.holder, Expiry: f.expiry, CVV: f.cvv}, nil
 	case domain.DataTypeOTP:
@@ -57,6 +60,8 @@ func newPayloadTarget(dataType domain.DataType) any {
 		return &domain.CredentialsPayload{}
 	case domain.DataTypeText:
 		return &domain.TextPayload{}
+	case domain.DataTypeBinary:
+		return &domain.BinaryPayload{}
 	case domain.DataTypeCard:
 		return &domain.CardPayload{}
 	case domain.DataTypeOTP:
@@ -70,7 +75,8 @@ func registerPayloadFlags(cmd *cobra.Command, f *payloadFlags) {
 	cmd.Flags().StringVar(&f.meta, "meta", "", "optional label/note for the record")
 	cmd.Flags().StringVar(&f.login, "login-value", "", "credentials: login/username")
 	cmd.Flags().StringVar(&f.password, "password-value", "", "credentials: password")
-	cmd.Flags().StringVar(&f.content, "content", "", "text: content")
+	cmd.Flags().StringVar(&f.content, "content", "", "text: content; binary: raw data")
+	cmd.Flags().StringVar(&f.filename, "filename", "", "binary: original file name")
 	cmd.Flags().StringVar(&f.number, "number", "", "card: number")
 	cmd.Flags().StringVar(&f.holder, "holder", "", "card: holder name")
 	cmd.Flags().StringVar(&f.expiry, "expiry", "", "card: expiry MM/YY")
