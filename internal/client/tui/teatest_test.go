@@ -125,17 +125,16 @@ var totpCodeRe = regexp.MustCompile(`TOTP: (\d{6})`)
 // waitForOTPCode ждёт первого появления строки "TOTP: <код>" в выводе и возвращает код.
 func waitForOTPCode(t *testing.T, r io.Reader, timeout time.Duration) string {
 	t.Helper()
-	var buf bytes.Buffer
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		_, _ = io.ReadAll(io.TeeReader(r, &buf))
-		if m := totpCodeRe.FindSubmatch(buf.Bytes()); m != nil {
-			return string(m[1])
+	var code string
+	teatest.WaitFor(t, r, func(b []byte) bool {
+		m := totpCodeRe.FindSubmatch(b)
+		if m == nil {
+			return false
 		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	t.Fatalf("no TOTP code appeared within %s; output so far:\n%s", timeout, buf.String())
-	return ""
+		code = string(m[1])
+		return true
+	}, teatest.WithDuration(timeout), teatest.WithCheckInterval(20*time.Millisecond))
+	return code
 }
 
 // waitForDifferentOTPCode ждёт появления в выводе кода TOTP, отличного от initial —
@@ -143,19 +142,17 @@ func waitForOTPCode(t *testing.T, r io.Reader, timeout time.Duration) string {
 // был просто отрисован один раз при открытии экрана деталей.
 func waitForDifferentOTPCode(t *testing.T, r io.Reader, initial string, timeout time.Duration) string {
 	t.Helper()
-	var buf bytes.Buffer
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		_, _ = io.ReadAll(io.TeeReader(r, &buf))
-		for _, m := range totpCodeRe.FindAllSubmatch(buf.Bytes(), -1) {
-			if code := string(m[1]); code != initial {
-				return code
+	var code string
+	teatest.WaitFor(t, r, func(b []byte) bool {
+		for _, m := range totpCodeRe.FindAllSubmatch(b, -1) {
+			if c := string(m[1]); c != initial {
+				code = c
+				return true
 			}
 		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	t.Fatalf("no OTP code different from %q appeared within %s (live tick never fired); output so far:\n%s", initial, timeout, buf.String())
-	return ""
+		return false
+	}, teatest.WithDuration(timeout), teatest.WithCheckInterval(50*time.Millisecond))
+	return code
 }
 
 // TestTUI_Teatest_LiveOTPTickThroughRealTimer проверяет, что живой TOTP-код на
