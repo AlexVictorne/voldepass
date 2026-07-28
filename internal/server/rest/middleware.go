@@ -205,9 +205,10 @@ func validateRecordID(id string) error {
 }
 
 // maxShortDBStringLength — верхняя граница для строковых полей, хранимых как VARCHAR(200)
-// (users.login, idempotency_keys.key — см. migrations/000001_init.up.sql). Без проверки на
-// границе транспорта слишком длинное значение долетает до Postgres и падает с "сырой"
-// ошибкой формата колонки вместо аккуратного 400.
+// (users.login, idempotency_keys.key — см.
+// internal/server/storage/postgres/migrations/000001_init.up.sql). Без проверки на границе
+// транспорта слишком длинное значение долетает до Postgres и падает с "сырой" ошибкой
+// формата колонки вместо аккуратного 400.
 const maxShortDBStringLength = 200
 
 // validateShortString проверяет, что value не превышает maxShortDBStringLength байт.

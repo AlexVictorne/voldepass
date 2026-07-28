@@ -203,7 +203,7 @@ export VOLDEPASS_LOGIN=alice
 Пять уровней, от быстрых/дешёвых к медленным/дорогим:
 
 ```sh
-make lint              # golangci-lint + go vet + govulncheck + go mod verify + check-migrations
+make lint              # golangci-lint + go vet + govulncheck + go mod verify
 make test              # юнит + функциональные, -race, порог покрытия ≥70%
 make test-slow         # медленные TUI-тесты на реальном времени (build tag slow)
 make test-integration  # реальный PostgreSQL через testcontainers (требует Docker)

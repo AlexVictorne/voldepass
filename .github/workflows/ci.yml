@@ -33,11 +33,6 @@ jobs:
       - name: go vet
         run: go vet ./...
 
-      # migrations/ (для CLI golang-migrate) и internal/server/storage/postgres/migrations/
-      # (вкомпилирована в сервер через go:embed) должны быть побайтово идентичны.
-      - name: check migrations are in sync
-        run: make check-migrations
-
       - name: go mod verify
         run: go mod verify
 
