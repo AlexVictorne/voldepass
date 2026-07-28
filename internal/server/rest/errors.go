@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/rs/zerolog"
+
 	"github.com/alexvictorne/voldepass/internal/domain"
 )
 
@@ -13,8 +15,12 @@ type errorResponse struct {
 	Error string `json:"error"`
 }
 
-// writeError маппит доменную ошибку в HTTP-статус и пишет JSON-тело.
-func writeError(w http.ResponseWriter, err error) {
+// writeError маппит доменную ошибку в HTTP-статус и пишет JSON-тело. Ошибки,
+// приводящие к 5xx (внутренние, не размеченные ни одним доменным sentinel),
+// дополнительно логируются — иначе оператор видит в RequestLogger только
+// "status": 500 и не знает, что именно сломалось на сервере. 4xx — штатные
+// (валидация, авторизация и т.п.) и логированием только засоряли бы лог.
+func writeError(log zerolog.Logger, w http.ResponseWriter, err error) {
 	status := http.StatusInternalServerError
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
@@ -29,6 +35,10 @@ func writeError(w http.ResponseWriter, err error) {
 		status = http.StatusTooManyRequests
 	case errors.Is(err, domain.ErrInvalidArgument):
 		status = http.StatusBadRequest
+	}
+
+	if status >= http.StatusInternalServerError {
+		log.Error().Err(err).Msg("internal server error")
 	}
 
 	writeJSON(w, status, errorResponse{Error: err.Error()})

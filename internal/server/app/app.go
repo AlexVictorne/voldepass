@@ -58,9 +58,9 @@ func New(ctx context.Context, cfg config.Config, log zerolog.Logger) (*App, erro
 	syncSvc := service.NewSyncService(records, idempotency)
 
 	router := rest.NewRouter(
-		rest.NewAuthHandlers(authSvc),
-		rest.NewVaultHandlers(vaultSvc),
-		rest.NewSyncHandlers(syncSvc),
+		rest.NewAuthHandlers(authSvc, log),
+		rest.NewVaultHandlers(vaultSvc, log),
+		rest.NewSyncHandlers(syncSvc, log),
 		jwt,
 		cfg.CORSAllowedOrigins,
 		log,

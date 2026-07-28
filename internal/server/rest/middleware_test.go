@@ -3,6 +3,7 @@ package rest
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -24,7 +25,7 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 	token, _ := jwt.Issue("user-1")
 
 	var gotUserID string
-	handler := AuthMiddleware(jwt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := AuthMiddleware(jwt, zerolog.Nop())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotUserID, _ = userIDFromContext(r.Context())
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -40,7 +41,7 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 
 func TestAuthMiddleware_MissingHeader(t *testing.T) {
 	jwt := auth.NewJWTManager([]byte("secret-32-bytes-long-enough-pad"), time.Minute)
-	handler := AuthMiddleware(jwt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := AuthMiddleware(jwt, zerolog.Nop())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -53,7 +54,7 @@ func TestAuthMiddleware_MissingHeader(t *testing.T) {
 
 func TestAuthMiddleware_InvalidToken(t *testing.T) {
 	jwt := auth.NewJWTManager([]byte("secret-32-bytes-long-enough-pad"), time.Minute)
-	handler := AuthMiddleware(jwt)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := AuthMiddleware(jwt, zerolog.Nop())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -106,7 +107,7 @@ func TestCheckAPIVersion_IncompatibleMajor(t *testing.T) {
 func TestLoginRateLimit_AllowsUntilLimitExceeded(t *testing.T) {
 	tracker := inmem.NewLoginAttemptTracker(2, time.Minute)
 	var calls int
-	handler := LoginRateLimit(tracker)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := LoginRateLimit(tracker, zerolog.Nop())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -137,7 +138,7 @@ func TestLoginRateLimit_AllowsUntilLimitExceeded(t *testing.T) {
 func TestLoginRateLimit_RestoresBodyForHandler(t *testing.T) {
 	tracker := inmem.NewLoginAttemptTracker(5, time.Minute)
 	var gotBody string
-	handler := LoginRateLimit(tracker)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := LoginRateLimit(tracker, zerolog.Nop())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
 		gotBody = string(b)
 		w.WriteHeader(http.StatusOK)
@@ -155,7 +156,7 @@ func TestLoginRateLimit_RestoresBodyForHandler(t *testing.T) {
 func TestLoginRateLimit_InvalidJSONPassesThroughToHandler(t *testing.T) {
 	tracker := inmem.NewLoginAttemptTracker(5, time.Minute)
 	var called bool
-	handler := LoginRateLimit(tracker)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := LoginRateLimit(tracker, zerolog.Nop())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		w.WriteHeader(http.StatusBadRequest)
 	}))
@@ -240,7 +241,33 @@ func TestWriteError_StatusMapping(t *testing.T) {
 	}
 	for _, tc := range cases {
 		rec := httptest.NewRecorder()
-		writeError(rec, tc.err)
+		writeError(zerolog.Nop(), rec, tc.err)
 		assert.Equal(t, tc.status, rec.Code, "for error %v", tc.err)
 	}
+}
+
+func TestWriteError_LogsInternalErrors(t *testing.T) {
+	var buf bytes.Buffer
+	log := zerolog.New(&buf)
+
+	rec := httptest.NewRecorder()
+	writeError(log, rec, errors.New("db connection lost"))
+
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+
+	var entry map[string]any
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &entry))
+	assert.Equal(t, "error", entry["level"])
+	assert.Contains(t, entry["error"], "db connection lost")
+}
+
+func TestWriteError_DoesNotLogClientErrors(t *testing.T) {
+	var buf bytes.Buffer
+	log := zerolog.New(&buf)
+
+	rec := httptest.NewRecorder()
+	writeError(log, rec, domain.ErrNotFound)
+
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+	assert.Empty(t, buf.String(), "4xx errors are expected and must not be logged")
 }

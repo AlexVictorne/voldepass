@@ -45,13 +45,14 @@ func newTestServerWithCORS(t *testing.T, corsAllowedOrigins []string) *httptest.
 	vaultSvc := service.NewVaultService(records)
 	syncSvc := service.NewSyncService(records, idempotency)
 
+	log := zerolog.Nop()
 	router := rest.NewRouter(
-		rest.NewAuthHandlers(authSvc),
-		rest.NewVaultHandlers(vaultSvc),
-		rest.NewSyncHandlers(syncSvc),
+		rest.NewAuthHandlers(authSvc, log),
+		rest.NewVaultHandlers(vaultSvc, log),
+		rest.NewSyncHandlers(syncSvc, log),
 		jwt,
 		corsAllowedOrigins,
-		zerolog.Nop(),
+		log,
 		attempts,
 	)
 	return httptest.NewServer(router)

@@ -45,12 +45,12 @@ func NewRouter(auth *AuthHandlers, vault *VaultHandlers, sync *SyncHandlers, jwt
 		// Публичные маршруты (не требуют access-токена).
 		r.Post("/register", auth.Register)
 		r.Post("/login/challenge", auth.Challenge)
-		r.With(LoginRateLimit(loginAttempts)).Post("/login", auth.Login)
+		r.With(LoginRateLimit(loginAttempts, log)).Post("/login", auth.Login)
 		r.Post("/refresh", auth.Refresh)
 
 		// Защищённые маршруты.
 		r.Group(func(r chi.Router) {
-			r.Use(AuthMiddleware(jwt))
+			r.Use(AuthMiddleware(jwt, log))
 
 			r.Route("/records", func(r chi.Router) {
 				r.Post("/", vault.Create)

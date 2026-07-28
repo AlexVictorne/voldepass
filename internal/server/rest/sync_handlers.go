@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/rs/zerolog"
+
 	"github.com/alexvictorne/voldepass/internal/domain"
 )
 
@@ -17,11 +19,12 @@ type syncService interface {
 // SyncHandlers — HTTP-хендлеры синхронизации записей (Pull/Push).
 type SyncHandlers struct {
 	svc syncService
+	log zerolog.Logger
 }
 
 // NewSyncHandlers создаёт хендлеры синхронизации поверх сервиса.
-func NewSyncHandlers(svc syncService) *SyncHandlers {
-	return &SyncHandlers{svc: svc}
+func NewSyncHandlers(svc syncService, log zerolog.Logger) *SyncHandlers {
+	return &SyncHandlers{svc: svc, log: log}
 }
 
 // Pull godoc
@@ -40,19 +43,19 @@ func NewSyncHandlers(svc syncService) *SyncHandlers {
 func (h *SyncHandlers) Pull(w http.ResponseWriter, r *http.Request) {
 	ownerID, err := userIDFromContext(r.Context())
 	if err != nil {
-		writeError(w, err)
+		writeError(h.log, w, err)
 		return
 	}
 
 	since, err := parseSinceVersion(r)
 	if err != nil {
-		writeError(w, err)
+		writeError(h.log, w, err)
 		return
 	}
 
 	resp, err := h.svc.Pull(r.Context(), ownerID, since)
 	if err != nil {
-		writeError(w, err)
+		writeError(h.log, w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, resp)
@@ -79,25 +82,25 @@ func (h *SyncHandlers) Pull(w http.ResponseWriter, r *http.Request) {
 func (h *SyncHandlers) Push(w http.ResponseWriter, r *http.Request) {
 	ownerID, err := userIDFromContext(r.Context())
 	if err != nil {
-		writeError(w, err)
+		writeError(h.log, w, err)
 		return
 	}
 
 	idempotencyKey := r.Header.Get("Idempotency-Key")
 	if idempotencyKey == "" {
-		writeError(w, domain.ErrInvalidArgument)
+		writeError(h.log, w, domain.ErrInvalidArgument)
 		return
 	}
 
 	var req domain.SyncPushRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, domain.ErrInvalidArgument)
+		writeError(h.log, w, domain.ErrInvalidArgument)
 		return
 	}
 
 	resp, err := h.svc.Push(r.Context(), ownerID, idempotencyKey, req)
 	if err != nil {
-		writeError(w, err)
+		writeError(h.log, w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, resp)

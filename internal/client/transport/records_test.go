@@ -40,9 +40,9 @@ func newLiveServer(t *testing.T) *httptest.Server {
 	syncSvc := service.NewSyncService(records, idempotency)
 
 	router := rest.NewRouter(
-		rest.NewAuthHandlers(authSvc),
-		rest.NewVaultHandlers(vaultSvc),
-		rest.NewSyncHandlers(syncSvc),
+		rest.NewAuthHandlers(authSvc, zerolog.Nop()),
+		rest.NewVaultHandlers(vaultSvc, zerolog.Nop()),
+		rest.NewSyncHandlers(syncSvc, zerolog.Nop()),
 		jwt,
 		nil,
 		zerolog.Nop(),

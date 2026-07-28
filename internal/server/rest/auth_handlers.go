@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/rs/zerolog"
+
 	"github.com/alexvictorne/voldepass/internal/domain"
 	"github.com/alexvictorne/voldepass/internal/server/service"
 )
@@ -20,11 +22,12 @@ type authService interface {
 // AuthHandlers — HTTP-хендлеры регистрации и аутентификации.
 type AuthHandlers struct {
 	svc authService
+	log zerolog.Logger
 }
 
 // NewAuthHandlers создаёт хендлеры аутентификации поверх сервиса.
-func NewAuthHandlers(svc authService) *AuthHandlers {
-	return &AuthHandlers{svc: svc}
+func NewAuthHandlers(svc authService, log zerolog.Logger) *AuthHandlers {
+	return &AuthHandlers{svc: svc, log: log}
 }
 
 type registerRequest struct {
@@ -51,7 +54,7 @@ type registerRequest struct {
 func (h *AuthHandlers) Register(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, domain.ErrInvalidArgument)
+		writeError(h.log, w, domain.ErrInvalidArgument)
 		return
 	}
 
@@ -64,7 +67,7 @@ func (h *AuthHandlers) Register(w http.ResponseWriter, r *http.Request) {
 
 	u, err := h.svc.Register(r.Context(), req.Login, req.AuthVerifier, profile)
 	if err != nil {
-		writeError(w, err)
+		writeError(h.log, w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]string{"id": u.ID, "login": u.Login})
@@ -97,13 +100,13 @@ type challengeResponse struct {
 func (h *AuthHandlers) Challenge(w http.ResponseWriter, r *http.Request) {
 	var req challengeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, domain.ErrInvalidArgument)
+		writeError(h.log, w, domain.ErrInvalidArgument)
 		return
 	}
 
 	nonce, profile, err := h.svc.Challenge(r.Context(), req.Login)
 	if err != nil {
-		writeError(w, err)
+		writeError(h.log, w, err)
 		return
 	}
 
@@ -142,13 +145,13 @@ type tokenResponse struct {
 func (h *AuthHandlers) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, domain.ErrInvalidArgument)
+		writeError(h.log, w, domain.ErrInvalidArgument)
 		return
 	}
 
 	tokens, err := h.svc.Login(r.Context(), req.Login, req.AuthMsg)
 	if err != nil {
-		writeError(w, err)
+		writeError(h.log, w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, tokenResponse{AccessToken: tokens.AccessToken, RefreshToken: tokens.RefreshToken})
@@ -174,13 +177,13 @@ type refreshRequest struct {
 func (h *AuthHandlers) Refresh(w http.ResponseWriter, r *http.Request) {
 	var req refreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, domain.ErrInvalidArgument)
+		writeError(h.log, w, domain.ErrInvalidArgument)
 		return
 	}
 
 	tokens, err := h.svc.Refresh(r.Context(), req.RefreshToken)
 	if err != nil {
-		writeError(w, err)
+		writeError(h.log, w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, tokenResponse{AccessToken: tokens.AccessToken, RefreshToken: tokens.RefreshToken})

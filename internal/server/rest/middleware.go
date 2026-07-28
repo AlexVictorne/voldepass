@@ -29,19 +29,19 @@ type jwtParser interface {
 }
 
 // AuthMiddleware проверяет Bearer-токен из заголовка Authorization и кладёт userID в контекст.
-func AuthMiddleware(jwt jwtParser) func(http.Handler) http.Handler {
+func AuthMiddleware(jwt jwtParser, log zerolog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			header := r.Header.Get("Authorization")
 			token, ok := strings.CutPrefix(header, "Bearer ")
 			if !ok || token == "" {
-				writeError(w, domain.ErrUnauthorized)
+				writeError(log, w, domain.ErrUnauthorized)
 				return
 			}
 
 			userID, err := jwt.Parse(token)
 			if err != nil {
-				writeError(w, domain.ErrUnauthorized)
+				writeError(log, w, domain.ErrUnauthorized)
 				return
 			}
 
@@ -84,12 +84,12 @@ func RequestLogger(log zerolog.Logger) func(http.Handler) http.Handler {
 // Тело запроса читается один раз для извлечения "login" и восстанавливается для
 // хендлера. Если тело не парсится как JSON с полем login — не блокируем: невалидное
 // тело так и так будет отклонено самим хендлером (400), а не молча пропущено.
-func LoginRateLimit(tracker service.LoginAttemptTracker) func(http.Handler) http.Handler {
+func LoginRateLimit(tracker service.LoginAttemptTracker, log zerolog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
-				writeError(w, domain.ErrInvalidArgument)
+				writeError(log, w, domain.ErrInvalidArgument)
 				return
 			}
 			r.Body = io.NopCloser(bytes.NewReader(body))
@@ -104,11 +104,11 @@ func LoginRateLimit(tracker service.LoginAttemptTracker) func(http.Handler) http
 
 			allowed, err := tracker.Allowed(r.Context(), req.Login)
 			if err != nil {
-				writeError(w, fmt.Errorf("check login rate limit: %w", err))
+				writeError(log, w, fmt.Errorf("check login rate limit: %w", err))
 				return
 			}
 			if !allowed {
-				writeError(w, domain.ErrRateLimited)
+				writeError(log, w, domain.ErrRateLimited)
 				return
 			}
 			next.ServeHTTP(w, r)
