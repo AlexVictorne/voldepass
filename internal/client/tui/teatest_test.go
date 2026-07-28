@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/exp/teatest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/alexvictorne/voldepass/internal/client/service"
 	"github.com/alexvictorne/voldepass/internal/domain"
@@ -64,8 +65,9 @@ func TestTUI_Teatest_LoginAddAndQuit(t *testing.T) {
 // работают через настоящий раннер, а не только через прямые вызовы Update().
 func TestTUI_Teatest_EditAndDeleteThroughRealRunner(t *testing.T) {
 	dataKey := testDataKey(t)
-	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
-		v.Create(domain.DataTypeText, "my-note", domain.TextPayload{Content: "original content"})
+	m := newTestModel(t, dataKey, func(t *testing.T, v *service.VaultManager) {
+		_, err := v.Create(domain.DataTypeText, "my-note", domain.TextPayload{Content: "original content"})
+		require.NoError(t, err)
 	})
 
 	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(100, 30))
@@ -163,12 +165,13 @@ func waitForDifferentOTPCode(t *testing.T, r io.Reader, initial string, timeout 
 // работу таймера от простого повторного вызова Update().
 func TestTUI_Teatest_LiveOTPTickThroughRealTimer(t *testing.T) {
 	dataKey := testDataKey(t)
-	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
+	m := newTestModel(t, dataKey, func(t *testing.T, v *service.VaultManager) {
 		// Period=1s совпадает с otpTickInterval — гарантирует смену кода в пределах
 		// нескольких секунд без ожидания полного 30-секундного окна по умолчанию.
-		_, _ = v.Create(domain.DataTypeOTP, "gh", domain.OTPPayload{
+		_, err := v.Create(domain.DataTypeOTP, "gh", domain.OTPPayload{
 			Secret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", Algorithm: "SHA1", Digits: 6, Period: 1,
 		})
+		require.NoError(t, err)
 	})
 
 	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(100, 30))

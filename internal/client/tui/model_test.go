@@ -38,12 +38,12 @@ func (f *fakeSyncTransport) Push(ctx context.Context, idempotencyKey string, req
 }
 
 // newTestModel создаёт модель с in-memory openSession-заглушкой — без сети и файлов.
-func newTestModel(t *testing.T, dataKey []byte, seedRecords func(v *service.VaultManager)) *Model {
+func newTestModel(t *testing.T, dataKey []byte, seedRecords func(t *testing.T, v *service.VaultManager)) *Model {
 	t.Helper()
 	store := storage.NewStore()
 	vault := service.NewVaultManager(store, dataKey)
 	if seedRecords != nil {
-		seedRecords(vault)
+		seedRecords(t, vault)
 	}
 	fileStore := storage.NewFileStore(t.TempDir() + "/storage.vp")
 	fileStore.Store = store
@@ -58,12 +58,12 @@ func newTestModel(t *testing.T, dataKey []byte, seedRecords func(v *service.Vaul
 
 // newTestModelWithSyncer — как newTestModel, но с реальным *service.Syncer поверх
 // fakeSyncTransport, чтобы тестировать ручной sync (клавиша "s" на экране списка).
-func newTestModelWithSyncer(t *testing.T, dataKey []byte, transport *fakeSyncTransport, seedRecords func(v *service.VaultManager)) *Model {
+func newTestModelWithSyncer(t *testing.T, dataKey []byte, transport *fakeSyncTransport, seedRecords func(t *testing.T, v *service.VaultManager)) *Model {
 	t.Helper()
 	store := storage.NewStore()
 	vault := service.NewVaultManager(store, dataKey)
 	if seedRecords != nil {
-		seedRecords(vault)
+		seedRecords(t, vault)
 	}
 	fileStore := storage.NewFileStore(t.TempDir() + "/storage.vp")
 	fileStore.Store = store
@@ -130,8 +130,9 @@ func TestModel_Login_EnterReturnsAsyncCommand(t *testing.T) {
 
 func TestModel_Login_EnterSuccess_MovesToList(t *testing.T) {
 	dataKey := testDataKey(t)
-	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
-		v.Create(domain.DataTypeText, "note", domain.TextPayload{Content: "hi"})
+	m := newTestModel(t, dataKey, func(t *testing.T, v *service.VaultManager) {
+		_, err := v.Create(domain.DataTypeText, "note", domain.TextPayload{Content: "hi"})
+		require.NoError(t, err)
 	})
 
 	m2 := loginViaEnter(t, m)
@@ -168,9 +169,11 @@ func TestModel_Login_EnterIgnoredWhileLoggingIn(t *testing.T) {
 
 func TestModel_List_NavigateDownAndUp(t *testing.T) {
 	dataKey := testDataKey(t)
-	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
-		v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "a"})
-		v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "b"})
+	m := newTestModel(t, dataKey, func(t *testing.T, v *service.VaultManager) {
+		_, err := v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "a"})
+		require.NoError(t, err)
+		_, err = v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "b"})
+		require.NoError(t, err)
 	})
 	m = loginViaEnter(t, m)
 	require.Equal(t, screenList, m.screen)
@@ -187,8 +190,9 @@ func TestModel_List_NavigateDownAndUp(t *testing.T) {
 
 func TestModel_List_EnterOpensDetail(t *testing.T) {
 	dataKey := testDataKey(t)
-	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
-		v.Create(domain.DataTypeText, "my-note", domain.TextPayload{Content: "secret content"})
+	m := newTestModel(t, dataKey, func(t *testing.T, v *service.VaultManager) {
+		_, err := v.Create(domain.DataTypeText, "my-note", domain.TextPayload{Content: "secret content"})
+		require.NoError(t, err)
 	})
 	m = loginViaEnter(t, m)
 
@@ -202,8 +206,9 @@ func TestModel_List_EnterOpensDetail(t *testing.T) {
 
 func TestModel_Detail_EscReturnsToList(t *testing.T) {
 	dataKey := testDataKey(t)
-	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
-		v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "x"})
+	m := newTestModel(t, dataKey, func(t *testing.T, v *service.VaultManager) {
+		_, err := v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "x"})
+		require.NoError(t, err)
 	})
 	m = loginViaEnter(t, m)
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -217,10 +222,11 @@ func TestModel_Detail_EscReturnsToList(t *testing.T) {
 
 func TestModel_Detail_LiveOTPUpdatesOnTick(t *testing.T) {
 	dataKey := testDataKey(t)
-	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
-		v.Create(domain.DataTypeOTP, "gh", domain.OTPPayload{
+	m := newTestModel(t, dataKey, func(t *testing.T, v *service.VaultManager) {
+		_, err := v.Create(domain.DataTypeOTP, "gh", domain.OTPPayload{
 			Secret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", Algorithm: "SHA1", Digits: 6, Period: 30,
 		})
+		require.NoError(t, err)
 	})
 	m = loginViaEnter(t, m)
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -541,8 +547,9 @@ func TestModel_List_SyncError_DoesNotUpdateLastSyncTime(t *testing.T) {
 
 func TestModel_List_ShowsMetaLabelNotRawID(t *testing.T) {
 	dataKey := testDataKey(t)
-	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
-		v.Create(domain.DataTypeCredentials, "gmail", domain.CredentialsPayload{Login: "a", Password: "b"})
+	m := newTestModel(t, dataKey, func(t *testing.T, v *service.VaultManager) {
+		_, err := v.Create(domain.DataTypeCredentials, "gmail", domain.CredentialsPayload{Login: "a", Password: "b"})
+		require.NoError(t, err)
 	})
 	m = loginViaEnter(t, m)
 
@@ -557,8 +564,9 @@ func TestModel_List_ShowsMetaLabelNotRawID(t *testing.T) {
 
 func TestModel_List_FallsBackToIDWhenMetaEmpty(t *testing.T) {
 	dataKey := testDataKey(t)
-	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
-		v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "no meta"})
+	m := newTestModel(t, dataKey, func(t *testing.T, v *service.VaultManager) {
+		_, err := v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "no meta"})
+		require.NoError(t, err)
 	})
 	m = loginViaEnter(t, m)
 
@@ -582,8 +590,9 @@ func TestModel_AddForm_NewRecordGetsMetaLabelInList(t *testing.T) {
 
 func TestModel_List_DeleteKey_ShowsConfirmation(t *testing.T) {
 	dataKey := testDataKey(t)
-	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
-		v.Create(domain.DataTypeText, "my-note", domain.TextPayload{Content: "x"})
+	m := newTestModel(t, dataKey, func(t *testing.T, v *service.VaultManager) {
+		_, err := v.Create(domain.DataTypeText, "my-note", domain.TextPayload{Content: "x"})
+		require.NoError(t, err)
 	})
 	m = loginViaEnter(t, m)
 
@@ -609,8 +618,9 @@ func TestModel_List_DeleteKey_EmptyListIsNoop(t *testing.T) {
 
 func TestModel_DeleteConfirm_Yes_DeletesRecord(t *testing.T) {
 	dataKey := testDataKey(t)
-	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
-		v.Create(domain.DataTypeText, "my-note", domain.TextPayload{Content: "x"})
+	m := newTestModel(t, dataKey, func(t *testing.T, v *service.VaultManager) {
+		_, err := v.Create(domain.DataTypeText, "my-note", domain.TextPayload{Content: "x"})
+		require.NoError(t, err)
 	})
 	m = loginViaEnter(t, m)
 
@@ -627,8 +637,9 @@ func TestModel_DeleteConfirm_Yes_DeletesRecord(t *testing.T) {
 
 func TestModel_DeleteConfirm_AnyOtherKey_Cancels(t *testing.T) {
 	dataKey := testDataKey(t)
-	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
-		v.Create(domain.DataTypeText, "my-note", domain.TextPayload{Content: "x"})
+	m := newTestModel(t, dataKey, func(t *testing.T, v *service.VaultManager) {
+		_, err := v.Create(domain.DataTypeText, "my-note", domain.TextPayload{Content: "x"})
+		require.NoError(t, err)
 	})
 	m = loginViaEnter(t, m)
 
@@ -645,9 +656,11 @@ func TestModel_DeleteConfirm_AnyOtherKey_Cancels(t *testing.T) {
 
 func TestModel_DeleteConfirm_ClampsCursorWhenLastRecordDeleted(t *testing.T) {
 	dataKey := testDataKey(t)
-	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
-		v.Create(domain.DataTypeText, "a", domain.TextPayload{Content: "a"})
-		v.Create(domain.DataTypeText, "b", domain.TextPayload{Content: "b"})
+	m := newTestModel(t, dataKey, func(t *testing.T, v *service.VaultManager) {
+		_, err := v.Create(domain.DataTypeText, "a", domain.TextPayload{Content: "a"})
+		require.NoError(t, err)
+		_, err = v.Create(domain.DataTypeText, "b", domain.TextPayload{Content: "b"})
+		require.NoError(t, err)
 	})
 	m = loginViaEnter(t, m)
 	m.cursor = 1 // последняя запись
@@ -665,8 +678,9 @@ func TestModel_DeleteConfirm_ClampsCursorWhenLastRecordDeleted(t *testing.T) {
 
 func TestModel_Detail_EditKey_OpensPrefilledForm(t *testing.T) {
 	dataKey := testDataKey(t)
-	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
-		v.Create(domain.DataTypeCredentials, "gmail", domain.CredentialsPayload{Login: "alice", Password: "s3cret"})
+	m := newTestModel(t, dataKey, func(t *testing.T, v *service.VaultManager) {
+		_, err := v.Create(domain.DataTypeCredentials, "gmail", domain.CredentialsPayload{Login: "alice", Password: "s3cret"})
+		require.NoError(t, err)
 	})
 	m = loginViaEnter(t, m)
 
@@ -687,8 +701,9 @@ func TestModel_Detail_EditKey_OpensPrefilledForm(t *testing.T) {
 
 func TestModel_Edit_Submit_UpdatesExistingRecordInPlace(t *testing.T) {
 	dataKey := testDataKey(t)
-	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
-		v.Create(domain.DataTypeText, "note", domain.TextPayload{Content: "v1"})
+	m := newTestModel(t, dataKey, func(t *testing.T, v *service.VaultManager) {
+		_, err := v.Create(domain.DataTypeText, "note", domain.TextPayload{Content: "v1"})
+		require.NoError(t, err)
 	})
 	m = loginViaEnter(t, m)
 	originalID := m.records[0].ID
@@ -723,8 +738,9 @@ func TestModel_Edit_Submit_UpdatesExistingRecordInPlace(t *testing.T) {
 
 func TestModel_Edit_EscCancel_LeavesRecordUnchanged(t *testing.T) {
 	dataKey := testDataKey(t)
-	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
-		v.Create(domain.DataTypeText, "note", domain.TextPayload{Content: "original"})
+	m := newTestModel(t, dataKey, func(t *testing.T, v *service.VaultManager) {
+		_, err := v.Create(domain.DataTypeText, "note", domain.TextPayload{Content: "original"})
+		require.NoError(t, err)
 	})
 	m = loginViaEnter(t, m)
 
@@ -748,11 +764,12 @@ func TestModel_Edit_EscCancel_LeavesRecordUnchanged(t *testing.T) {
 
 func TestModel_Edit_OTP_PrefillsAllFields(t *testing.T) {
 	dataKey := testDataKey(t)
-	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
-		v.Create(domain.DataTypeOTP, "gh", domain.OTPPayload{
+	m := newTestModel(t, dataKey, func(t *testing.T, v *service.VaultManager) {
+		_, err := v.Create(domain.DataTypeOTP, "gh", domain.OTPPayload{
 			Secret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", Issuer: "GitHub", Account: "alice",
 			Algorithm: "SHA256", Digits: 8, Period: 60,
 		})
+		require.NoError(t, err)
 	})
 	m = loginViaEnter(t, m)
 
@@ -772,8 +789,9 @@ func TestModel_Edit_OTP_PrefillsAllFields(t *testing.T) {
 
 func TestModel_Edit_Binary_Prefills(t *testing.T) {
 	dataKey := testDataKey(t)
-	m := newTestModel(t, dataKey, func(v *service.VaultManager) {
-		v.Create(domain.DataTypeBinary, "file", domain.BinaryPayload{Data: []byte("raw-bytes"), Filename: "note.txt"})
+	m := newTestModel(t, dataKey, func(t *testing.T, v *service.VaultManager) {
+		_, err := v.Create(domain.DataTypeBinary, "file", domain.BinaryPayload{Data: []byte("raw-bytes"), Filename: "note.txt"})
+		require.NoError(t, err)
 	})
 	m = loginViaEnter(t, m)
 
