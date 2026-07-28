@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -25,7 +26,7 @@ func readPassword(in io.Reader, out io.Writer, prompt string) (string, error) {
 
 	reader := bufio.NewReader(in)
 	line, err := reader.ReadString('\n')
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return "", fmt.Errorf("read password: %w", err)
 	}
 	return strings.TrimRight(line, "\r\n"), nil

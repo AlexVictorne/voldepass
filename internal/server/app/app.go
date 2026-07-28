@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -97,7 +98,7 @@ func (a *App) Run(ctx context.Context) error {
 		} else {
 			err = a.httpServer.ListenAndServe()
 		}
-		if err != nil && err != http.ErrServerClosed {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			serveErr <- err
 		}
 		close(serveErr)
