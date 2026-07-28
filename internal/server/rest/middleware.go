@@ -74,6 +74,11 @@ func RequestLogger(log zerolog.Logger) func(http.Handler) http.Handler {
 	}
 }
 
+// maxLoginRequestBodyBytes ограничивает тело запроса, которое LoginRateLimit читает
+// в память целиком для извлечения "login" — без этого лимита клиент мог бы отправить
+// произвольно большое тело и заставить сервер вычитать его целиком до валидации.
+const maxLoginRequestBodyBytes = 1 << 20 // 1 MiB — с большим запасом на реальный login-запрос
+
 // LoginRateLimit возвращает middleware, отклоняющее запрос 429-м до вызова хендлера,
 // если LoginAttemptTracker.Allowed говорит, что логин уже превысил лимит попыток —
 // это позволяет отсечь превышающие лимит запросы максимально рано, ещё до разбора
@@ -87,6 +92,7 @@ func RequestLogger(log zerolog.Logger) func(http.Handler) http.Handler {
 func LoginRateLimit(tracker service.LoginAttemptTracker, log zerolog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, maxLoginRequestBodyBytes)
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
 				writeError(log, w, domain.ErrInvalidArgument)

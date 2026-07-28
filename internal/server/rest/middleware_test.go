@@ -169,6 +169,23 @@ func TestLoginRateLimit_InvalidJSONPassesThroughToHandler(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
+func TestLoginRateLimit_OversizedBodyRejected(t *testing.T) {
+	tracker := inmem.NewLoginAttemptTracker(5, time.Minute)
+	var called bool
+	handler := LoginRateLimit(tracker, zerolog.Nop())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	oversized := bytes.Repeat([]byte("a"), maxLoginRequestBodyBytes+1)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/login", bytes.NewReader(oversized))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	assert.False(t, called, "oversized body must be rejected before reaching the handler")
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
 func TestRequestLogger_LogsMethodPathStatus(t *testing.T) {
 	var buf bytes.Buffer
 	log := zerolog.New(&buf)
