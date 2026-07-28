@@ -143,7 +143,10 @@ func (s *AuthService) Login(ctx context.Context, login string, authMsg []byte) (
 func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (AuthTokens, error) {
 	newRefresh, userID, err := s.refresh.Rotate(ctx, refreshToken)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
+		// Отсутствующий/неизвестный refresh-токен (ErrNotFound) — это тоже ошибка
+		// аутентификации, а не "ресурс не найден": иначе writeError смаппит его в 404,
+		// хотя клиенту нужно увидеть 401 и заново пройти login.
+		if errors.Is(err, domain.ErrUnauthorized) || errors.Is(err, domain.ErrNotFound) {
 			return AuthTokens{}, domain.ErrUnauthorized
 		}
 		return AuthTokens{}, fmt.Errorf("refresh: %w", err)

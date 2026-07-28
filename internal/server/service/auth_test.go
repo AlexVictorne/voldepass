@@ -159,3 +159,14 @@ func TestAuthService_Refresh(t *testing.T) {
 	_, err = svc.Refresh(ctx, tokens.RefreshToken)
 	assert.ErrorIs(t, err, domain.ErrUnauthorized)
 }
+
+func TestAuthService_Refresh_UnknownToken(t *testing.T) {
+	svc := newAuthService(t)
+
+	// Токен, которого никогда не существовало (ErrNotFound на уровне хранилища),
+	// должен транслироваться как ErrUnauthorized — это ошибка аутентификации,
+	// а не "ресурс не найден" (иначе REST-слой отдал бы 404 вместо 401).
+	_, err := svc.Refresh(context.Background(), "never-issued-token")
+	assert.ErrorIs(t, err, domain.ErrUnauthorized)
+	assert.NotErrorIs(t, err, domain.ErrNotFound)
+}

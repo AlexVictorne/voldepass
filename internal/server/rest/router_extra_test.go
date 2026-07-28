@@ -107,8 +107,8 @@ func TestRouter_Refresh_InvalidToken(t *testing.T) {
 
 	resp := doJSON(t, http.MethodPost, srv.URL+"/api/v1/refresh", map[string]any{"refresh_token": "garbage"}, "")
 	defer resp.Body.Close()
-	// Неизвестный токен транслируется как ErrNotFound (нет такого refresh-токена).
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	// Неизвестный токен — это ошибка аутентификации (401), а не "ресурс не найден".
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
 func TestRouter_Register_InvalidBody(t *testing.T) {
