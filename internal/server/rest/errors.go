@@ -37,11 +37,16 @@ func writeError(log zerolog.Logger, w http.ResponseWriter, err error) {
 		status = http.StatusBadRequest
 	}
 
+	// 5xx — незамаппленная внутренняя ошибка (БД, внутренние пути и т.п.), её текст
+	// не должен уходить клиенту: это раскрывает внутреннее устройство сервера.
+	// Полный err уже залогирован ниже; клиенту — только нейтральный http.StatusText.
+	msg := err.Error()
 	if status >= http.StatusInternalServerError {
 		log.Error().Err(err).Msg("internal server error")
+		msg = http.StatusText(status)
 	}
 
-	writeJSON(w, status, errorResponse{Error: err.Error()})
+	writeJSON(w, status, errorResponse{Error: msg})
 }
 
 // writeJSON пишет статус и JSON-тело в ответ.

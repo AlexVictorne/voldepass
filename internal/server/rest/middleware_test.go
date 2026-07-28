@@ -261,6 +261,18 @@ func TestWriteError_LogsInternalErrors(t *testing.T) {
 	assert.Contains(t, entry["error"], "db connection lost")
 }
 
+func TestWriteError_HidesInternalDetailsFromResponseBody(t *testing.T) {
+	rec := httptest.NewRecorder()
+	writeError(zerolog.Nop(), rec, errors.New("pq: relation \"users\" does not exist"))
+
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+
+	var body errorResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Equal(t, http.StatusText(http.StatusInternalServerError), body.Error,
+		"5xx response body must not leak internal error details to the client")
+}
+
 func TestWriteError_DoesNotLogClientErrors(t *testing.T) {
 	var buf bytes.Buffer
 	log := zerolog.New(&buf)
