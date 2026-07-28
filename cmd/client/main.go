@@ -19,7 +19,11 @@ var version = "dev"
 var buildDate = "unknown"
 
 func main() {
-	root := cli.NewRootCmd(version, buildDate)
+	root, err := cli.NewRootCmd(version, buildDate)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)

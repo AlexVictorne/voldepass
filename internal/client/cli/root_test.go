@@ -9,7 +9,8 @@ import (
 )
 
 func TestRootCmd_Version(t *testing.T) {
-	root := NewRootCmd("1.2.3", "2024-01-01")
+	root, err := NewRootCmd("1.2.3", "2024-01-01")
+	require.NoError(t, err)
 	var out bytes.Buffer
 	root.SetOut(&out)
 	root.SetArgs([]string{"version"})
@@ -17,6 +18,17 @@ func TestRootCmd_Version(t *testing.T) {
 	require.NoError(t, root.Execute())
 	assert.Contains(t, out.String(), "version=1.2.3")
 	assert.Contains(t, out.String(), "buildDate=2024-01-01")
+}
+
+// TestRootCmd_InvalidConfigEnv_FailsEarly проверяет, что некорректное значение
+// в переменной окружения (например, нечисловое MAX_RETRIES) приводит к ошибке
+// из NewRootCmd, а не к молчаливому откату на дефолты — оператор мог задать
+// это значение намеренно, и незаметный откат усложнил бы отладку.
+func TestRootCmd_InvalidConfigEnv_FailsEarly(t *testing.T) {
+	t.Setenv("VOLDEPASS_CLIENT_MAX_RETRIES", "not-a-number")
+
+	_, err := NewRootCmd("1.2.3", "2024-01-01")
+	require.Error(t, err)
 }
 
 func TestRequireLogin_Missing(t *testing.T) {

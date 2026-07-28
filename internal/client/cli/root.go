@@ -18,10 +18,16 @@ type rootFlags struct {
 
 // NewRootCmd собирает корневую cobra-команду CLI со всеми подкомандами.
 // version/buildDate передаются из ldflags cmd/client/main.go.
-func NewRootCmd(version, buildDate string) *cobra.Command {
+//
+// Ошибка загрузки конфигурации (например, переменная окружения задана в
+// некорректном формате) возвращается вызывающему коду, а не проглатывается
+// молча с откатом на дефолты — оператор мог намеренно задать эти значения,
+// и незаметный откат к дефолтам усложнил бы отладку и мог бы привести к
+// работе с неверными параметрами незамеченным ("fail early").
+func NewRootCmd(version, buildDate string) (*cobra.Command, error) {
 	cfg, err := clientcfg.Load(nil) // только defaults → JSON-файл → env; флаги парсит cobra
 	if err != nil {
-		cfg = clientcfg.Default()
+		return nil, fmt.Errorf("load config: %w", err)
 	}
 
 	flags := &rootFlags{login: os.Getenv("VOLDEPASS_LOGIN")}
@@ -57,7 +63,7 @@ func NewRootCmd(version, buildDate string) *cobra.Command {
 	root.AddCommand(newGenerateCmd())
 	root.AddCommand(newTUICmd(effectiveConfig))
 
-	return root
+	return root, nil
 }
 
 // requireLogin возвращает login из флага/окружения или ошибку, если он не задан.
