@@ -180,6 +180,7 @@ export VOLDEPASS_LOGIN=alice
 ```sh
 make lint              # golangci-lint + go vet + govulncheck + go mod verify + check-migrations
 make test              # юнит + функциональные, -race, порог покрытия ≥70%
+make test-slow         # медленные TUI-тесты на реальном времени (build tag slow)
 make test-integration  # реальный PostgreSQL через testcontainers (требует Docker)
 make test-e2e          # сборка бинарей + smoke-проверки
 make test-all          # всё вышеперечисленное
@@ -189,6 +190,11 @@ make test-all          # всё вышеперечисленное
 полнофункциональных in-memory стеков — не моков — так что `AuthService`,
 `VaultService`, `SyncService`, chi-роутер и cobra-команды CLI проверяются целиком,
 без реальной БД или сети.
+
+Единственный тест, зависящий от реального времени (ждёт срабатывания `tea.Tick` в TUI,
+до 5с), вынесен под build tag `slow` (`internal/client/tui/teatest_slow_test.go`) и
+не входит в `make test` — гоняется отдельно через `make test-slow`, чтобы не
+замедлять обычный цикл разработки.
 
 ## Ограничения zero-knowledge модели
 

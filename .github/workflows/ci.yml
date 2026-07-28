@@ -59,6 +59,13 @@ jobs:
             exit 1
           fi
 
+      # ── Медленные тесты ──────────────────────────────────────────────────
+      # Изолированы под build tag slow (сейчас — internal/client/tui/teatest_slow_test.go,
+      # тест зависит от реального времени tea.Tick), поэтому не входят в основной
+      # прогон unit tests, чтобы не замедлять обычный цикл.
+      - name: slow tests
+        run: make test-slow
+
       # ── Интеграционные тесты ────────────────────────────────────────────
       # test/integration поднимает свой собственный PostgreSQL через
       # testcontainers (см. test/integration/main_test.go) — внешний DSN не нужен.
