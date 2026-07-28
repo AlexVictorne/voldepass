@@ -35,6 +35,8 @@ func writeError(log zerolog.Logger, w http.ResponseWriter, err error) {
 		status = http.StatusTooManyRequests
 	case errors.Is(err, domain.ErrInvalidArgument):
 		status = http.StatusBadRequest
+	case errors.Is(err, domain.ErrPayloadTooLarge):
+		status = http.StatusRequestEntityTooLarge
 	}
 
 	// 5xx — незамаппленная внутренняя ошибка (БД, внутренние пути и т.п.), её текст
@@ -47,6 +49,20 @@ func writeError(log zerolog.Logger, w http.ResponseWriter, err error) {
 	}
 
 	writeJSON(w, status, errorResponse{Error: msg})
+}
+
+// writeDecodeError переводит ошибку json.Decoder.Decode(r.Body) в ответ клиенту.
+// Тело, превысившее лимит http.MaxBytesReader (см. middleware.go), даёт *http.MaxBytesError —
+// без этой проверки такая ошибка неотличима от обычного невалидного JSON и клиент получил бы
+// тот же generic "invalid argument", что и на действительно кривом теле, не понимая, что
+// причина — размер (см. README, "Лимиты размера запроса").
+func writeDecodeError(log zerolog.Logger, w http.ResponseWriter, err error) {
+	var maxBytesErr *http.MaxBytesError
+	if errors.As(err, &maxBytesErr) {
+		writeError(log, w, domain.ErrPayloadTooLarge)
+		return
+	}
+	writeError(log, w, domain.ErrInvalidArgument)
 }
 
 // writeJSON пишет статус и JSON-тело в ответ.

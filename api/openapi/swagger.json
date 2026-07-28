@@ -54,6 +54,12 @@
                             "$ref": "#/definitions/internal_server_rest.errorResponse"
                         }
                     },
+                    "413": {
+                        "description": "request body too large",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
                     "429": {
                         "description": "rate limited",
                         "schema": {
@@ -102,6 +108,12 @@
                     },
                     "404": {
                         "description": "unknown login",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "request body too large",
                         "schema": {
                             "$ref": "#/definitions/internal_server_rest.errorResponse"
                         }
@@ -199,6 +211,12 @@
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "request body too large",
                         "schema": {
                             "$ref": "#/definitions/internal_server_rest.errorResponse"
                         }
@@ -309,6 +327,12 @@
                         "schema": {
                             "$ref": "#/definitions/internal_server_rest.errorResponse"
                         }
+                    },
+                    "413": {
+                        "description": "request body too large",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
                     }
                 }
             },
@@ -393,6 +417,12 @@
                         "schema": {
                             "$ref": "#/definitions/internal_server_rest.errorResponse"
                         }
+                    },
+                    "413": {
+                        "description": "request body too large",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
                     }
                 }
             }
@@ -439,6 +469,12 @@
                     },
                     "409": {
                         "description": "login already taken",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "request body too large",
                         "schema": {
                             "$ref": "#/definitions/internal_server_rest.errorResponse"
                         }
@@ -540,6 +576,12 @@
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "request body too large",
                         "schema": {
                             "$ref": "#/definitions/internal_server_rest.errorResponse"
                         }

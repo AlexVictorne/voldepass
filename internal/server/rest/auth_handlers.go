@@ -50,13 +50,14 @@ type registerRequest struct {
 //	@Success		201		{object}	map[string]string
 //	@Failure		400		{object}	errorResponse
 //	@Failure		409		{object}	errorResponse	"login already taken"
+//	@Failure		413		{object}	errorResponse	"request body too large"
 //	@Router			/register [post]
 func (h *AuthHandlers) Register(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxAuthRequestBodyBytes)
 
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(h.log, w, domain.ErrInvalidArgument)
+		writeDecodeError(h.log, w, err)
 		return
 	}
 	if err := validateShortString("login", req.Login); err != nil {
@@ -102,13 +103,14 @@ type challengeResponse struct {
 //	@Success		200		{object}	challengeResponse
 //	@Failure		400		{object}	errorResponse
 //	@Failure		404		{object}	errorResponse	"unknown login"
+//	@Failure		413		{object}	errorResponse	"request body too large"
 //	@Router			/login/challenge [post]
 func (h *AuthHandlers) Challenge(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxAuthRequestBodyBytes)
 
 	var req challengeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(h.log, w, domain.ErrInvalidArgument)
+		writeDecodeError(h.log, w, err)
 		return
 	}
 
@@ -148,12 +150,13 @@ type tokenResponse struct {
 //	@Success		200		{object}	tokenResponse
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse	"invalid authMsg or expired/consumed challenge"
+//	@Failure		413		{object}	errorResponse	"request body too large"
 //	@Failure		429		{object}	errorResponse	"rate limited"
 //	@Router			/login [post]
 func (h *AuthHandlers) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(h.log, w, domain.ErrInvalidArgument)
+		writeDecodeError(h.log, w, err)
 		return
 	}
 
@@ -181,13 +184,14 @@ type refreshRequest struct {
 //	@Success		200		{object}	tokenResponse
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse	"expired, unknown, or reused token"
+//	@Failure		413		{object}	errorResponse	"request body too large"
 //	@Router			/refresh [post]
 func (h *AuthHandlers) Refresh(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxAuthRequestBodyBytes)
 
 	var req refreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(h.log, w, domain.ErrInvalidArgument)
+		writeDecodeError(h.log, w, err)
 		return
 	}
 

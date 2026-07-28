@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -41,6 +42,24 @@ func TestVaultManager_CreateAndGet(t *testing.T) {
 	assert.Equal(t, "github", meta)
 	assert.Equal(t, payload, got)
 	assert.Equal(t, dto.ID, gotDTO.ID)
+}
+
+func TestVaultManager_Create_PayloadTooLarge(t *testing.T) {
+	v := newVaultManager(t)
+
+	huge := domain.TextPayload{Content: strings.Repeat("a", 7<<20+1)}
+	_, err := v.Create(domain.DataTypeText, "", huge)
+	assert.ErrorIs(t, err, domain.ErrPayloadTooLarge, "must be rejected locally, before encryption/local storage/sync")
+}
+
+func TestVaultManager_Update_PayloadTooLarge(t *testing.T) {
+	v := newVaultManager(t)
+	dto, err := v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "small"})
+	require.NoError(t, err)
+
+	huge := domain.TextPayload{Content: strings.Repeat("a", 7<<20+1)}
+	_, err = v.Update(dto.ID, "", huge)
+	assert.ErrorIs(t, err, domain.ErrPayloadTooLarge)
 }
 
 func TestVaultManager_Create_NoMeta(t *testing.T) {

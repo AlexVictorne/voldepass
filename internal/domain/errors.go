@@ -26,3 +26,9 @@ var ErrRateLimited = errors.New("rate limited")
 
 // ErrInvalidArgument возвращается при некорректных входных данных.
 var ErrInvalidArgument = errors.New("invalid argument")
+
+// ErrPayloadTooLarge возвращается, когда payload/тело запроса превышает
+// допустимый размер — и клиентом (до попытки отправки на сервер), и сервером
+// (маппится в HTTP 413), чтобы пользователь получал одно и то же понятное
+// сообщение независимо от того, где именно сработала проверка.
+var ErrPayloadTooLarge = errors.New("payload too large")

@@ -78,6 +78,7 @@ func (h *SyncHandlers) Pull(w http.ResponseWriter, r *http.Request) {
 //	@Success		200				{object}	domain.SyncPushResponse
 //	@Failure		400				{object}	errorResponse	"missing Idempotency-Key or malformed body"
 //	@Failure		401				{object}	errorResponse
+//	@Failure		413				{object}	errorResponse	"request body too large"
 //	@Router			/sync [post]
 func (h *SyncHandlers) Push(w http.ResponseWriter, r *http.Request) {
 	ownerID, err := userIDFromContext(r.Context())
@@ -100,7 +101,7 @@ func (h *SyncHandlers) Push(w http.ResponseWriter, r *http.Request) {
 
 	var req domain.SyncPushRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(h.log, w, domain.ErrInvalidArgument)
+		writeDecodeError(h.log, w, err)
 		return
 	}
 

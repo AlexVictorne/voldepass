@@ -183,7 +183,7 @@ func TestLoginRateLimit_OversizedBodyRejected(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	assert.False(t, called, "oversized body must be rejected before reaching the handler")
-	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.Equal(t, http.StatusRequestEntityTooLarge, rec.Code)
 }
 
 func TestRequestLogger_LogsMethodPathStatus(t *testing.T) {

@@ -116,7 +116,7 @@ func LoginRateLimit(tracker service.LoginAttemptTracker, log zerolog.Logger) fun
 			r.Body = http.MaxBytesReader(w, r.Body, maxLoginRequestBodyBytes)
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
-				writeError(log, w, domain.ErrInvalidArgument)
+				writeDecodeError(log, w, err)
 				return
 			}
 			r.Body = io.NopCloser(bytes.NewReader(body))

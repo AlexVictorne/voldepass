@@ -68,6 +68,7 @@ func recordToResponse(r domain.Record) domain.RecordDTO {
 //	@Success		201		{object}	domain.RecordDTO
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
+//	@Failure		413		{object}	errorResponse	"request body too large"
 //	@Router			/records [post]
 func (h *VaultHandlers) Create(w http.ResponseWriter, r *http.Request) {
 	ownerID, err := userIDFromContext(r.Context())
@@ -80,7 +81,7 @@ func (h *VaultHandlers) Create(w http.ResponseWriter, r *http.Request) {
 
 	var req recordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(h.log, w, domain.ErrInvalidArgument)
+		writeDecodeError(h.log, w, err)
 		return
 	}
 	if !req.Type.Valid() {
@@ -188,6 +189,7 @@ func (h *VaultHandlers) List(w http.ResponseWriter, r *http.Request) {
 //	@Failure		400		{object}	errorResponse
 //	@Failure		401		{object}	errorResponse
 //	@Failure		409		{object}	errorResponse	"base_version is stale"
+//	@Failure		413		{object}	errorResponse	"request body too large"
 //	@Router			/records/{id} [put]
 func (h *VaultHandlers) Update(w http.ResponseWriter, r *http.Request) {
 	ownerID, err := userIDFromContext(r.Context())
@@ -206,7 +208,7 @@ func (h *VaultHandlers) Update(w http.ResponseWriter, r *http.Request) {
 
 	var req recordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(h.log, w, domain.ErrInvalidArgument)
+		writeDecodeError(h.log, w, err)
 		return
 	}
 	if !req.Type.Valid() {

@@ -12,6 +12,15 @@ import (
 	"github.com/alexvictorne/voldepass/internal/domain"
 )
 
+// maxPlaintextPayloadBytes — верхняя граница на несжатый JSON-payload одной записи
+// перед шифрованием. Ciphertext на сервере передаётся в составе JSON-тела как base64
+// (раздувает объём ~в 1.33 раза) вместе с meta/nonce/служебными полями; 7 MiB здесь
+// с запасом остаются на сервере под maxRecordRequestBodyBytes = 10 MiB
+// (internal/server/rest/middleware.go). Проверка на клиенте — до шифрования и записи
+// в локальное хранилище, чтобы пользователь узнавал о проблеме сразу в TUI/CLI,
+// а не только на sync, когда push всего чанка из 100 записей просто падает с 413.
+const maxPlaintextPayloadBytes = 7 << 20 // 7 MiB
+
 // VaultManager шифрует/дешифрует записи хранилища и работает с локальным
 // состоянием офлайн-first: изменения помечаются Dirty и синхронизируются
 // на сервер отдельно через Syncer.
@@ -31,6 +40,9 @@ func (v *VaultManager) Create(dataType domain.DataType, meta string, payload any
 	plaintext, err := json.Marshal(payload)
 	if err != nil {
 		return domain.RecordDTO{}, fmt.Errorf("marshal payload: %w", err)
+	}
+	if len(plaintext) > maxPlaintextPayloadBytes {
+		return domain.RecordDTO{}, fmt.Errorf("%w: payload is %d bytes, limit is %d", domain.ErrPayloadTooLarge, len(plaintext), maxPlaintextPayloadBytes)
 	}
 
 	ciphertext, nonce, err := crypto.Encrypt(v.dataKey, plaintext)
@@ -69,6 +81,9 @@ func (v *VaultManager) Update(id string, meta string, payload any) (domain.Recor
 	plaintext, err := json.Marshal(payload)
 	if err != nil {
 		return domain.RecordDTO{}, fmt.Errorf("marshal payload: %w", err)
+	}
+	if len(plaintext) > maxPlaintextPayloadBytes {
+		return domain.RecordDTO{}, fmt.Errorf("%w: payload is %d bytes, limit is %d", domain.ErrPayloadTooLarge, len(plaintext), maxPlaintextPayloadBytes)
 	}
 	ciphertext, nonce, err := crypto.Encrypt(v.dataKey, plaintext)
 	if err != nil {

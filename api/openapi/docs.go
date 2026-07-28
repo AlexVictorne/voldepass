@@ -61,6 +61,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/internal_server_rest.errorResponse"
                         }
                     },
+                    "413": {
+                        "description": "request body too large",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
                     "429": {
                         "description": "rate limited",
                         "schema": {
@@ -109,6 +115,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "unknown login",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "request body too large",
                         "schema": {
                             "$ref": "#/definitions/internal_server_rest.errorResponse"
                         }
@@ -206,6 +218,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "request body too large",
                         "schema": {
                             "$ref": "#/definitions/internal_server_rest.errorResponse"
                         }
@@ -316,6 +334,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/internal_server_rest.errorResponse"
                         }
+                    },
+                    "413": {
+                        "description": "request body too large",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
                     }
                 }
             },
@@ -400,6 +424,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/internal_server_rest.errorResponse"
                         }
+                    },
+                    "413": {
+                        "description": "request body too large",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
                     }
                 }
             }
@@ -446,6 +476,12 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "login already taken",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "request body too large",
                         "schema": {
                             "$ref": "#/definitions/internal_server_rest.errorResponse"
                         }
@@ -547,6 +583,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "request body too large",
                         "schema": {
                             "$ref": "#/definitions/internal_server_rest.errorResponse"
                         }

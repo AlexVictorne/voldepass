@@ -258,6 +258,10 @@ paths:
           description: invalid authMsg or expired/consumed challenge
           schema:
             $ref: '#/definitions/internal_server_rest.errorResponse'
+        "413":
+          description: request body too large
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
         "429":
           description: rate limited
           schema:
@@ -292,6 +296,10 @@ paths:
             $ref: '#/definitions/internal_server_rest.errorResponse'
         "404":
           description: unknown login
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "413":
+          description: request body too large
           schema:
             $ref: '#/definitions/internal_server_rest.errorResponse'
       summary: Request a login challenge
@@ -353,6 +361,10 @@ paths:
             $ref: '#/definitions/internal_server_rest.errorResponse'
         "401":
           description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "413":
+          description: request body too large
           schema:
             $ref: '#/definitions/internal_server_rest.errorResponse'
       security:
@@ -451,6 +463,10 @@ paths:
           description: base_version is stale
           schema:
             $ref: '#/definitions/internal_server_rest.errorResponse'
+        "413":
+          description: request body too large
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
       security:
       - BearerAuth: []
       summary: Update a vault record
@@ -485,6 +501,10 @@ paths:
           description: expired, unknown, or reused token
           schema:
             $ref: '#/definitions/internal_server_rest.errorResponse'
+        "413":
+          description: request body too large
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
       summary: Rotate the refresh token and issue a new access token
       tags:
       - auth
@@ -517,6 +537,10 @@ paths:
             $ref: '#/definitions/internal_server_rest.errorResponse'
         "409":
           description: login already taken
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "413":
+          description: request body too large
           schema:
             $ref: '#/definitions/internal_server_rest.errorResponse'
       summary: Register a new user
@@ -586,6 +610,10 @@ paths:
             $ref: '#/definitions/internal_server_rest.errorResponse'
         "401":
           description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "413":
+          description: request body too large
           schema:
             $ref: '#/definitions/internal_server_rest.errorResponse'
       security:
