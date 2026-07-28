@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -123,9 +124,10 @@ func TestClient_SyncPushAndPull_LiveServer(t *testing.T) {
 	registerAndLoginClient(t, c, "alice", "master-password")
 
 	ctx := context.Background()
+	recordID := uuid.NewString()
 	pushResp, err := c.Push(ctx, "idem-key-1", domain.SyncPushRequest{
 		Records: []domain.RecordDTO{
-			{ID: "r1", Type: domain.DataTypeText, Ciphertext: []byte("ct"), Nonce: []byte("n1"), BaseVersion: 0},
+			{ID: recordID, Type: domain.DataTypeText, Ciphertext: []byte("ct"), Nonce: []byte("n1"), BaseVersion: 0},
 		},
 	})
 	require.NoError(t, err)
@@ -135,7 +137,7 @@ func TestClient_SyncPushAndPull_LiveServer(t *testing.T) {
 	pullResp, err := c.Pull(ctx, 0)
 	require.NoError(t, err)
 	require.Len(t, pullResp.Records, 1)
-	assert.Equal(t, "r1", pullResp.Records[0].ID)
+	assert.Equal(t, recordID, pullResp.Records[0].ID)
 }
 
 func TestClient_AutoRefreshOn401(t *testing.T) {

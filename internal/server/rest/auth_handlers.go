@@ -57,6 +57,10 @@ func (h *AuthHandlers) Register(w http.ResponseWriter, r *http.Request) {
 		writeError(h.log, w, domain.ErrInvalidArgument)
 		return
 	}
+	if err := validateShortString("login", req.Login); err != nil {
+		writeError(h.log, w, err)
+		return
+	}
 
 	profile := domain.Profile{
 		KdfSalt:        req.KdfSalt,

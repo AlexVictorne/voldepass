@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -105,7 +106,7 @@ func TestScenario_IdempotentPushReplay(t *testing.T) {
 	token, _ := registerAndLogin(t, srv, login, "master-password")
 
 	req := domain.SyncPushRequest{Records: []domain.RecordDTO{
-		{ID: "idem-rec-1", Type: domain.DataTypeText, Ciphertext: []byte("v1"), Nonce: []byte("nonce-value12"), BaseVersion: 0},
+		{ID: uuid.NewString(), Type: domain.DataTypeText, Ciphertext: []byte("v1"), Nonce: []byte("nonce-value12"), BaseVersion: 0},
 	}}
 
 	resp1, _ := syncPush(t, srv, token, "same-key", req)

@@ -1,10 +1,13 @@
 package rest_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -57,6 +60,110 @@ func TestRouter_RecordUpdate_InvalidBody(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestRouter_RecordGet_InvalidID(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.Close()
+	token := registerAndLogin(t, srv.URL, "alice", "master-password")
+
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/records/not-a-uuid", nil, token)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "malformed id must be rejected before it reaches the repository")
+}
+
+func TestRouter_RecordDelete_InvalidID(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.Close()
+	token := registerAndLogin(t, srv.URL, "alice", "master-password")
+
+	resp := doJSON(t, http.MethodDelete, srv.URL+"/api/v1/records/not-a-uuid", nil, token)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestRouter_SyncPush_InvalidRecordID(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.Close()
+	token := registerAndLogin(t, srv.URL, "alice", "master-password")
+
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/sync", bytes.NewReader(mustJSON(t, domain.SyncPushRequest{
+		Records: []domain.RecordDTO{
+			{ID: "not-a-uuid", Type: domain.DataTypeText, Ciphertext: []byte("ct"), Nonce: []byte("nonce")},
+		},
+	})))
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Idempotency-Key", "invalid-id-key")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "a non-UUID record id in a push batch must be rejected")
+}
+
+func TestRouter_SyncPush_InvalidRecordType(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.Close()
+	token := registerAndLogin(t, srv.URL, "alice", "master-password")
+
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/sync", bytes.NewReader(mustJSON(t, domain.SyncPushRequest{
+		Records: []domain.RecordDTO{
+			{ID: uuid.NewString(), Type: domain.DataType(99), Ciphertext: []byte("ct"), Nonce: []byte("nonce")},
+		},
+	})))
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Idempotency-Key", "invalid-type-key")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "an out-of-range record type must be rejected")
+}
+
+func TestRouter_Create_InvalidRecordType(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.Close()
+	token := registerAndLogin(t, srv.URL, "alice", "master-password")
+
+	resp := doJSON(t, http.MethodPost, srv.URL+"/api/v1/records", map[string]any{
+		"type": 99, "ciphertext": []byte("ct"), "nonce": []byte("nonce1234567"),
+	}, token)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "an out-of-range record type must be rejected")
+}
+
+func TestRouter_Register_LoginTooLong(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.Close()
+
+	longLogin := strings.Repeat("a", 201)
+	resp := doJSON(t, http.MethodPost, srv.URL+"/api/v1/register", map[string]any{
+		"login": longLogin, "auth_verifier": []byte("verifier"),
+		"kdf_salt": []byte("salt"), "kdf_params": fastParams, "wrapped_data_key": []byte("wrapped"),
+	}, "")
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "a login exceeding the VARCHAR(200) column must be rejected before it reaches Postgres")
+}
+
+func TestRouter_SyncPush_IdempotencyKeyTooLong(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.Close()
+	token := registerAndLogin(t, srv.URL, "alice", "master-password")
+
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/sync", bytes.NewReader(mustJSON(t, domain.SyncPushRequest{})))
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Idempotency-Key", strings.Repeat("k", 201))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "an idempotency key exceeding the VARCHAR(200) column must be rejected")
 }
 
 func TestRouter_RecordList_Empty(t *testing.T) {

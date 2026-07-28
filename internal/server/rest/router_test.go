@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -174,9 +175,10 @@ func TestRouter_SyncPushAndPull(t *testing.T) {
 	defer srv.Close()
 	token := registerAndLogin(t, srv.URL, "alice", "master-password")
 
+	recordID := uuid.NewString()
 	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/sync", bytes.NewReader(mustJSON(t, domain.SyncPushRequest{
 		Records: []domain.RecordDTO{
-			{ID: "r1", Type: domain.DataTypeText, Ciphertext: []byte("ct"), Nonce: []byte("nonce"), BaseVersion: 0},
+			{ID: recordID, Type: domain.DataTypeText, Ciphertext: []byte("ct"), Nonce: []byte("nonce"), BaseVersion: 0},
 		},
 	})))
 	require.NoError(t, err)
@@ -199,7 +201,7 @@ func TestRouter_SyncPushAndPull(t *testing.T) {
 	require.NoError(t, json.NewDecoder(pullResp.Body).Decode(&pullOut))
 	pullResp.Body.Close()
 	require.Len(t, pullOut.Records, 1)
-	assert.Equal(t, "r1", pullOut.Records[0].ID)
+	assert.Equal(t, recordID, pullOut.Records[0].ID)
 }
 
 func TestRouter_SyncPush_MissingIdempotencyKey(t *testing.T) {

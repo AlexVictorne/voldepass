@@ -81,6 +81,10 @@ func (h *VaultHandlers) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(h.log, w, domain.ErrInvalidArgument)
 		return
 	}
+	if !req.Type.Valid() {
+		writeError(h.log, w, domain.ErrInvalidArgument)
+		return
+	}
 
 	rec, err := h.svc.Create(r.Context(), ownerID, domain.Record{
 		Type:          req.Type,
@@ -115,6 +119,11 @@ func (h *VaultHandlers) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := chi.URLParam(r, "id")
+	if err := validateRecordID(id); err != nil {
+		writeError(h.log, w, err)
+		return
+	}
+
 	rec, err := h.svc.Get(r.Context(), ownerID, id)
 	if err != nil {
 		writeError(h.log, w, err)
@@ -186,8 +195,17 @@ func (h *VaultHandlers) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := chi.URLParam(r, "id")
+	if err := validateRecordID(id); err != nil {
+		writeError(h.log, w, err)
+		return
+	}
+
 	var req recordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(h.log, w, domain.ErrInvalidArgument)
+		return
+	}
+	if !req.Type.Valid() {
 		writeError(h.log, w, domain.ErrInvalidArgument)
 		return
 	}
@@ -227,6 +245,11 @@ func (h *VaultHandlers) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := chi.URLParam(r, "id")
+	if err := validateRecordID(id); err != nil {
+		writeError(h.log, w, err)
+		return
+	}
+
 	if err := h.svc.Delete(r.Context(), ownerID, id); err != nil {
 		writeError(h.log, w, err)
 		return

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	"github.com/alexvictorne/voldepass/internal/domain"
@@ -170,4 +171,29 @@ func parseSinceVersion(r *http.Request) (int64, error) {
 		return 0, domain.ErrInvalidArgument
 	}
 	return v, nil
+}
+
+// validateRecordID проверяет, что id — валидный UUID (записи/пользователи/refresh-токены
+// хранятся в Postgres как колонки типа UUID). Без этой проверки на границе транспорта
+// невалидный id доходит до репозитория и падает с "сырой" ошибкой формата от драйвера БД,
+// которая маппится в 500 вместо ожидаемого 400.
+func validateRecordID(id string) error {
+	if _, err := uuid.Parse(id); err != nil {
+		return fmt.Errorf("%w: id must be a valid UUID", domain.ErrInvalidArgument)
+	}
+	return nil
+}
+
+// maxShortDBStringLength — верхняя граница для строковых полей, хранимых как VARCHAR(200)
+// (users.login, idempotency_keys.key — см. migrations/000001_init.up.sql). Без проверки на
+// границе транспорта слишком длинное значение долетает до Postgres и падает с "сырой"
+// ошибкой формата колонки вместо аккуратного 400.
+const maxShortDBStringLength = 200
+
+// validateShortString проверяет, что value не превышает maxShortDBStringLength байт.
+func validateShortString(field, value string) error {
+	if len(value) > maxShortDBStringLength {
+		return fmt.Errorf("%w: %s must be at most %d bytes", domain.ErrInvalidArgument, field, maxShortDBStringLength)
+	}
+	return nil
 }

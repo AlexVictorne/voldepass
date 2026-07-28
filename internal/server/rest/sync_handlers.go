@@ -91,11 +91,26 @@ func (h *SyncHandlers) Push(w http.ResponseWriter, r *http.Request) {
 		writeError(h.log, w, domain.ErrInvalidArgument)
 		return
 	}
+	if err := validateShortString("Idempotency-Key", idempotencyKey); err != nil {
+		writeError(h.log, w, err)
+		return
+	}
 
 	var req domain.SyncPushRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(h.log, w, domain.ErrInvalidArgument)
 		return
+	}
+
+	for _, rec := range req.Records {
+		if err := validateRecordID(rec.ID); err != nil {
+			writeError(h.log, w, err)
+			return
+		}
+		if !rec.Type.Valid() {
+			writeError(h.log, w, domain.ErrInvalidArgument)
+			return
+		}
 	}
 
 	resp, err := h.svc.Push(r.Context(), ownerID, idempotencyKey, req)
