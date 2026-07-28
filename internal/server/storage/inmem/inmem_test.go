@@ -146,8 +146,8 @@ func TestIdempotencyStore_Expired(t *testing.T) {
 
 func TestIdempotencyStore_DeleteExpired(t *testing.T) {
 	s := inmem.NewIdempotencyStore()
-	s.Save(ctx, "u1", "expired", []byte("x"), -time.Second)
-	s.Save(ctx, "u1", "alive", []byte("y"), time.Minute)
+	require.NoError(t, s.Save(ctx, "u1", "expired", []byte("x"), -time.Second))
+	require.NoError(t, s.Save(ctx, "u1", "alive", []byte("y"), time.Minute))
 
 	require.NoError(t, s.DeleteExpired(ctx))
 
@@ -173,29 +173,34 @@ func TestRefreshTokenStore_SaveAndGet(t *testing.T) {
 
 func TestRefreshTokenStore_Rotate(t *testing.T) {
 	s := inmem.NewRefreshTokenStore()
-	s.Save(ctx, "u1", "old", time.Now().Add(time.Hour))
+	require.NoError(t, s.Save(ctx, "u1", "old", time.Now().Add(time.Hour)))
 
 	require.NoError(t, s.Rotate(ctx, "old", "new", "u1", time.Now().Add(time.Hour)))
 
-	_, revoked, _, _ := s.Get(ctx, "old")
+	_, revoked, _, err := s.Get(ctx, "old")
+	require.NoError(t, err)
 	assert.True(t, revoked, "old token must be revoked after rotation")
 
-	uid, revoked2, _, _ := s.Get(ctx, "new")
+	uid, revoked2, _, err := s.Get(ctx, "new")
+	require.NoError(t, err)
 	assert.Equal(t, "u1", uid)
 	assert.False(t, revoked2)
 }
 
 func TestRefreshTokenStore_RevokeAll(t *testing.T) {
 	s := inmem.NewRefreshTokenStore()
-	s.Save(ctx, "u1", "t1", time.Now().Add(time.Hour))
-	s.Save(ctx, "u1", "t2", time.Now().Add(time.Hour))
-	s.Save(ctx, "u2", "t3", time.Now().Add(time.Hour))
+	require.NoError(t, s.Save(ctx, "u1", "t1", time.Now().Add(time.Hour)))
+	require.NoError(t, s.Save(ctx, "u1", "t2", time.Now().Add(time.Hour)))
+	require.NoError(t, s.Save(ctx, "u2", "t3", time.Now().Add(time.Hour)))
 
 	require.NoError(t, s.RevokeAll(ctx, "u1"))
 
-	_, r1, _, _ := s.Get(ctx, "t1")
-	_, r2, _, _ := s.Get(ctx, "t2")
-	_, r3, _, _ := s.Get(ctx, "t3")
+	_, r1, _, err := s.Get(ctx, "t1")
+	require.NoError(t, err)
+	_, r2, _, err := s.Get(ctx, "t2")
+	require.NoError(t, err)
+	_, r3, _, err := s.Get(ctx, "t3")
+	require.NoError(t, err)
 	assert.True(t, r1)
 	assert.True(t, r2)
 	assert.False(t, r3, "u2 token must not be revoked")

@@ -33,15 +33,19 @@ func TestEncryptDecrypt_RoundTrip(t *testing.T) {
 
 func TestEncrypt_UniqueNonce(t *testing.T) {
 	key := newTestKey(t)
-	_, nonce1, _ := crypto.Encrypt(key, []byte("data"))
-	_, nonce2, _ := crypto.Encrypt(key, []byte("data"))
+	_, nonce1, err := crypto.Encrypt(key, []byte("data"))
+	require.NoError(t, err)
+	_, nonce2, err := crypto.Encrypt(key, []byte("data"))
+	require.NoError(t, err)
 	assert.False(t, bytes.Equal(nonce1, nonce2), "each encryption must use a unique nonce")
 }
 
 func TestEncrypt_UniqueCiphertext(t *testing.T) {
 	key := newTestKey(t)
-	ct1, _, _ := crypto.Encrypt(key, []byte("same plaintext"))
-	ct2, _, _ := crypto.Encrypt(key, []byte("same plaintext"))
+	ct1, _, err := crypto.Encrypt(key, []byte("same plaintext"))
+	require.NoError(t, err)
+	ct2, _, err := crypto.Encrypt(key, []byte("same plaintext"))
+	require.NoError(t, err)
 	assert.False(t, bytes.Equal(ct1, ct2), "same plaintext encrypted twice must produce different ciphertexts")
 }
 

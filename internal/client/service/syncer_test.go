@@ -42,7 +42,8 @@ func TestSyncer_PushNewRecords(t *testing.T) {
 	dataKey := newTestDataKey(t)
 	vault := clientservice.NewVaultManager(store, dataKey)
 
-	vault.Create(domain.DataTypeText, "", domain.TextPayload{Content: "hello"})
+	_, err := vault.Create(domain.DataTypeText, "", domain.TextPayload{Content: "hello"})
+	require.NoError(t, err)
 
 	syncer := clientservice.NewSyncer(adapter, store)
 	conflicts, err := syncer.Sync(context.Background())
@@ -58,12 +59,13 @@ func TestSyncer_Sync_RecordsLastSyncAt(t *testing.T) {
 	store := storage.NewStore()
 	dataKey := newTestDataKey(t)
 	vault := clientservice.NewVaultManager(store, dataKey)
-	vault.Create(domain.DataTypeText, "", domain.TextPayload{Content: "hello"})
+	_, err := vault.Create(domain.DataTypeText, "", domain.TextPayload{Content: "hello"})
+	require.NoError(t, err)
 
 	assert.True(t, store.LastSyncAt().IsZero(), "must be zero before the first sync")
 
 	syncer := clientservice.NewSyncer(adapter, store)
-	_, err := syncer.Sync(context.Background())
+	_, err = syncer.Sync(context.Background())
 	require.NoError(t, err)
 
 	assert.False(t, store.LastSyncAt().IsZero(), "successful sync must record a timestamp")

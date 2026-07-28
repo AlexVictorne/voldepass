@@ -33,16 +33,18 @@ func TestVaultService_CreateAndGet(t *testing.T) {
 func TestVaultService_Get_WrongOwner(t *testing.T) {
 	svc := newVaultService()
 	ctx := context.Background()
-	rec, _ := svc.Create(ctx, "u1", domain.Record{Ciphertext: []byte("ct")})
+	rec, err := svc.Create(ctx, "u1", domain.Record{Ciphertext: []byte("ct")})
+	require.NoError(t, err)
 
-	_, err := svc.Get(ctx, "u2", rec.ID)
+	_, err = svc.Get(ctx, "u2", rec.ID)
 	assert.ErrorIs(t, err, domain.ErrNotFound)
 }
 
 func TestVaultService_Update(t *testing.T) {
 	svc := newVaultService()
 	ctx := context.Background()
-	rec, _ := svc.Create(ctx, "u1", domain.Record{Ciphertext: []byte("v1")})
+	rec, err := svc.Create(ctx, "u1", domain.Record{Ciphertext: []byte("v1")})
+	require.NoError(t, err)
 
 	rec.Ciphertext = []byte("v2")
 	updated, err := svc.Update(ctx, "u1", rec, rec.Version)
@@ -54,28 +56,33 @@ func TestVaultService_Update(t *testing.T) {
 func TestVaultService_Update_WrongOwner(t *testing.T) {
 	svc := newVaultService()
 	ctx := context.Background()
-	rec, _ := svc.Create(ctx, "u1", domain.Record{Ciphertext: []byte("v1")})
+	rec, err := svc.Create(ctx, "u1", domain.Record{Ciphertext: []byte("v1")})
+	require.NoError(t, err)
 
-	_, err := svc.Update(ctx, "u2", rec, rec.Version)
+	_, err = svc.Update(ctx, "u2", rec, rec.Version)
 	assert.ErrorIs(t, err, domain.ErrUnauthorized)
 }
 
 func TestVaultService_Update_Conflict(t *testing.T) {
 	svc := newVaultService()
 	ctx := context.Background()
-	rec, _ := svc.Create(ctx, "u1", domain.Record{Ciphertext: []byte("v1")})
+	rec, err := svc.Create(ctx, "u1", domain.Record{Ciphertext: []byte("v1")})
+	require.NoError(t, err)
 
 	// Устаревшая baseVersion → конфликт.
-	_, err := svc.Update(ctx, "u1", rec, 0)
+	_, err = svc.Update(ctx, "u1", rec, 0)
 	assert.ErrorIs(t, err, domain.ErrConflict)
 }
 
 func TestVaultService_List(t *testing.T) {
 	svc := newVaultService()
 	ctx := context.Background()
-	r1, _ := svc.Create(ctx, "u1", domain.Record{Ciphertext: []byte("a")})
-	svc.Create(ctx, "u1", domain.Record{Ciphertext: []byte("b")})
-	svc.Create(ctx, "u2", domain.Record{Ciphertext: []byte("c")})
+	r1, err := svc.Create(ctx, "u1", domain.Record{Ciphertext: []byte("a")})
+	require.NoError(t, err)
+	_, err = svc.Create(ctx, "u1", domain.Record{Ciphertext: []byte("b")})
+	require.NoError(t, err)
+	_, err = svc.Create(ctx, "u2", domain.Record{Ciphertext: []byte("c")})
+	require.NoError(t, err)
 
 	all, err := svc.List(ctx, "u1", 0)
 	require.NoError(t, err)
@@ -89,7 +96,8 @@ func TestVaultService_List(t *testing.T) {
 func TestVaultService_Delete(t *testing.T) {
 	svc := newVaultService()
 	ctx := context.Background()
-	rec, _ := svc.Create(ctx, "u1", domain.Record{Ciphertext: []byte("ct")})
+	rec, err := svc.Create(ctx, "u1", domain.Record{Ciphertext: []byte("ct")})
+	require.NoError(t, err)
 
 	require.NoError(t, svc.Delete(ctx, "u1", rec.ID))
 
@@ -101,9 +109,10 @@ func TestVaultService_Delete(t *testing.T) {
 func TestVaultService_Delete_WrongOwner(t *testing.T) {
 	svc := newVaultService()
 	ctx := context.Background()
-	rec, _ := svc.Create(ctx, "u1", domain.Record{Ciphertext: []byte("ct")})
+	rec, err := svc.Create(ctx, "u1", domain.Record{Ciphertext: []byte("ct")})
+	require.NoError(t, err)
 
-	err := svc.Delete(ctx, "u2", rec.ID)
+	err = svc.Delete(ctx, "u2", rec.ID)
 	assert.ErrorIs(t, err, domain.ErrUnauthorized)
 }
 

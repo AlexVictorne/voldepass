@@ -177,7 +177,8 @@ func TestVaultManager_Update_NotFound(t *testing.T) {
 
 func TestVaultManager_Delete_Tombstone(t *testing.T) {
 	v := newVaultManager(t)
-	dto, _ := v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "x"})
+	dto, err := v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "x"})
+	require.NoError(t, err)
 
 	require.NoError(t, v.Delete(dto.ID))
 
@@ -193,8 +194,10 @@ func TestVaultManager_Delete_NotFound(t *testing.T) {
 
 func TestVaultManager_List(t *testing.T) {
 	v := newVaultManager(t)
-	v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "a"})
-	v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "b"})
+	_, err := v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "a"})
+	require.NoError(t, err)
+	_, err = v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "b"})
+	require.NoError(t, err)
 
 	list := v.List()
 	assert.Len(t, list, 2)
@@ -210,11 +213,12 @@ func TestVaultManager_Get_WrongDataKeyFails(t *testing.T) {
 	store := storage.NewStore()
 	dataKey := newTestDataKey(t)
 	v := clientservice.NewVaultManager(store, dataKey)
-	dto, _ := v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "secret"})
+	dto, err := v.Create(domain.DataTypeText, "", domain.TextPayload{Content: "secret"})
+	require.NoError(t, err)
 
 	otherKey := newTestDataKey(t)
 	v2 := clientservice.NewVaultManager(store, otherKey)
 	var got domain.TextPayload
-	_, _, err := v2.Get(dto.ID, &got)
+	_, _, err = v2.Get(dto.ID, &got)
 	assert.Error(t, err, "decrypting with a different dataKey must fail")
 }

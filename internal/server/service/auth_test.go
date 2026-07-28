@@ -144,7 +144,8 @@ func TestAuthService_Refresh(t *testing.T) {
 	ctx := context.Background()
 	authKey := registerTestUser(t, svc, "alice", "master-password")
 
-	nonce, _, _ := svc.Challenge(ctx, "alice")
+	nonce, _, err := svc.Challenge(ctx, "alice")
+	require.NoError(t, err)
 	authMsg := crypto.AuthMessage(authKey, []byte(nonce))
 	tokens, err := svc.Login(ctx, "alice", authMsg)
 	require.NoError(t, err)
