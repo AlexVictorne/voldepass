@@ -15,12 +15,18 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.25.12"
           cache: true
 
       # ── Статический анализ ──────────────────────────────────────────────
+      # golangci-lint-action@v6 resolves "latest" to a stale cached release
+      # (v1.64.8, built with go1.24) that refuses to lint a go1.25.3 module
+      # ("the Go language version used to build golangci-lint is lower than
+      # the targeted Go version"). v8 resolves "latest" against current
+      # releases, which are built with a Go toolchain new enough for go.mod's
+      # declared version.
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
         with:
           version: latest
 
@@ -48,11 +54,22 @@ jobs:
             exit 1
           fi
 
+      # ── Медленные тесты ──────────────────────────────────────────────────
+      # Изолированы под build tag slow (сейчас — internal/client/tui/teatest_slow_test.go,
+      # тест зависит от реального времени tea.Tick), поэтому не входят в основной
+      # прогон unit tests, чтобы не замедлять обычный цикл.
+      - name: slow tests
+        run: make test-slow
+
       # ── Интеграционные тесты ────────────────────────────────────────────
+      # test/integration поднимает свой собственный PostgreSQL через
+      # testcontainers (см. test/integration/main_test.go) — внешний DSN не нужен.
       - name: integration tests
         run: go test -v -count=1 -tags=integration -race ./test/integration/...
-        env:
-          VOLDEPASS_DATABASE_URL: postgres://voldepass:voldepass@localhost:5432/voldepass?sslmode=disable
+
+      # ── E2E/smoke-тесты ─────────────────────────────────────────────────
+      - name: e2e smoke tests
+        run: go test -v -count=1 -tags=e2e -race ./test/e2e/...
 
       # ── Кросс-компиляция клиента ────────────────────────────────────────
       - name: cross-compile client (linux/amd64)

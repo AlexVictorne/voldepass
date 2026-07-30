@@ -1,0 +1,920 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Zero-knowledge password manager server API. The server only ever handles\nciphertext: encryption/decryption happens exclusively on the client.",
+        "title": "Voldepass API",
+        "contact": {},
+        "license": {
+            "name": "MIT"
+        },
+        "version": "1.0"
+    },
+    "basePath": "/api/v1",
+    "paths": {
+        "/login": {
+            "post": {
+                "description": "Second phase of login. authMsg = HMAC-SHA256(authKey, serverNonce), computed\nentirely client-side; the master password and authKey never cross the wire.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Complete challenge-response login",
+                "parameters": [
+                    {
+                        "description": "Login and computed authMsg",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.loginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.tokenResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "invalid authMsg or expired/consumed challenge",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "request body too large",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "rate limited",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/login/challenge": {
+            "post": {
+                "description": "First phase of challenge-response login. Returns a one-time serverNonce\n(consumed on first use) plus the user's crypto profile needed to derive keys.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Request a login challenge",
+                "parameters": [
+                    {
+                        "description": "Login identifier",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.challengeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.challengeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "unknown login",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "request body too large",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/records": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns all records owned by the authenticated user, optionally filtered\nto those changed after the given version.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "records"
+                ],
+                "summary": "List vault records",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Return only records with version \u003e since",
+                        "name": "since",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_alexvictorne_voldepass_internal_domain.RecordDTO"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Stores an already-encrypted record. The server never decrypts ciphertext/meta.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "records"
+                ],
+                "summary": "Create a vault record",
+                "parameters": [
+                    {
+                        "description": "Encrypted record",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.recordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_alexvictorne_voldepass_internal_domain.RecordDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "request body too large",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/records/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "records"
+                ],
+                "summary": "Get a vault record",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Record ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_alexvictorne_voldepass_internal_domain.RecordDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Optimistic locking: base_version must match the current server version,\notherwise the request fails with 409 Conflict.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "records"
+                ],
+                "summary": "Update a vault record",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Record ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated encrypted record",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.recordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_alexvictorne_voldepass_internal_domain.RecordDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "base_version is stale",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "request body too large",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Marks the record as a tombstone (soft delete) so the deletion propagates\ncorrectly to other devices during sync.",
+                "tags": [
+                    "records"
+                ],
+                "summary": "Delete a vault record",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Record ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "no content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/refresh": {
+            "post": {
+                "description": "The old refresh token is invalidated. Reusing an already-rotated token\nrevokes the entire token family (theft detection).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Rotate the refresh token and issue a new access token",
+                "parameters": [
+                    {
+                        "description": "Current refresh token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.refreshRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.tokenResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "expired, unknown, or reused token",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "request body too large",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/register": {
+            "post": {
+                "description": "Creates a new user with a zero-knowledge crypto profile. The server never\nsees the master password or the derived encryption key.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Register a new user",
+                "parameters": [
+                    {
+                        "description": "Registration payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.registerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "login already taken",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "request body too large",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/sync": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns every record owned by the authenticated user with version \u003e since.\nThe client tracks the max version seen and passes it as `since` on the next call.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sync"
+                ],
+                "summary": "Pull changed records since a version",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Last known version (0 = full pull)",
+                        "name": "since",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_alexvictorne_voldepass_internal_domain.SyncPullResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Applies each record with optimistic locking on base_version. Requires an\nIdempotency-Key header; retrying a push with the same key returns the\npreviously computed result instead of re-applying the batch. Records whose\nbase_version is stale come back with status \"conflict\" and the current\nserver record so the client can re-pull and merge.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "sync"
+                ],
+                "summary": "Push a batch of locally changed records",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client-generated idempotency key for this batch",
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Batch of changed records",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_alexvictorne_voldepass_internal_domain.SyncPushRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_alexvictorne_voldepass_internal_domain.SyncPushResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "missing Idempotency-Key or malformed body",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "request body too large",
+                        "schema": {
+                            "$ref": "#/definitions/internal_server_rest.errorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "github_com_alexvictorne_voldepass_internal_domain.DataType": {
+            "type": "integer",
+            "enum": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5
+            ],
+            "x-enum-comments": {
+                "DataTypeBinary": "binary",
+                "DataTypeCard": "card",
+                "DataTypeCredentials": "credentials",
+                "DataTypeOTP": "otp",
+                "DataTypeText": "text",
+                "DataTypeUnknown": "unknown"
+            },
+            "x-enum-varnames": [
+                "DataTypeUnknown",
+                "DataTypeCredentials",
+                "DataTypeText",
+                "DataTypeBinary",
+                "DataTypeCard",
+                "DataTypeOTP"
+            ]
+        },
+        "github_com_alexvictorne_voldepass_internal_domain.KdfParams": {
+            "type": "object",
+            "properties": {
+                "keyLen": {
+                    "description": "KeyLen — длина выводимого ключа в байтах.",
+                    "type": "integer"
+                },
+                "memory": {
+                    "description": "Memory — объём памяти в KiB.",
+                    "type": "integer"
+                },
+                "threads": {
+                    "description": "Threads — число параллельных потоков.",
+                    "type": "integer"
+                },
+                "time": {
+                    "description": "Time — количество итераций Argon2id.",
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_alexvictorne_voldepass_internal_domain.PushResult": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "description": "ID — идентификатор записи.",
+                    "type": "string"
+                },
+                "server_record": {
+                    "description": "ServerRecord — актуальная версия записи с сервера.\nЗаполняется всегда: при applied — обновлённая запись, при conflict — существующая.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_alexvictorne_voldepass_internal_domain.RecordDTO"
+                        }
+                    ]
+                },
+                "status": {
+                    "description": "Status — applied или conflict.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_alexvictorne_voldepass_internal_domain.PushStatus"
+                        }
+                    ]
+                }
+            }
+        },
+        "github_com_alexvictorne_voldepass_internal_domain.PushStatus": {
+            "type": "string",
+            "enum": [
+                "applied",
+                "conflict"
+            ],
+            "x-enum-varnames": [
+                "PushStatusApplied",
+                "PushStatusConflict"
+            ]
+        },
+        "github_com_alexvictorne_voldepass_internal_domain.RecordDTO": {
+            "type": "object",
+            "properties": {
+                "base_version": {
+                    "description": "BaseVersion — версия, на основе которой сделано изменение.\nИспользуется сервером для optimistic locking при Push.\nПри Pull это поле игнорируется (сервер заполняет Version).",
+                    "type": "integer"
+                },
+                "ciphertext": {
+                    "description": "Ciphertext — зашифрованный payload.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "encrypted_meta": {
+                    "description": "EncryptedMeta — зашифрованная метаинформация.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "id": {
+                    "description": "ID — уникальный идентификатор записи.",
+                    "type": "string"
+                },
+                "is_deleted": {
+                    "description": "IsDeleted — true, если запись помечена как удалённая (tombstone).",
+                    "type": "boolean"
+                },
+                "meta_nonce": {
+                    "description": "MetaNonce — nonce для EncryptedMeta.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "nonce": {
+                    "description": "Nonce — nonce для Ciphertext.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "type": {
+                    "description": "Type — тип данных (открытое поле).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_alexvictorne_voldepass_internal_domain.DataType"
+                        }
+                    ]
+                },
+                "updated_at": {
+                    "description": "UpdatedAt — время последнего изменения (проставляется сервером).",
+                    "type": "string"
+                },
+                "version": {
+                    "description": "Version — текущая версия записи на сервере (заполняется сервером).",
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_alexvictorne_voldepass_internal_domain.SyncPullResponse": {
+            "type": "object",
+            "properties": {
+                "records": {
+                    "description": "Records — список изменённых записей.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_alexvictorne_voldepass_internal_domain.RecordDTO"
+                    }
+                }
+            }
+        },
+        "github_com_alexvictorne_voldepass_internal_domain.SyncPushRequest": {
+            "type": "object",
+            "properties": {
+                "records": {
+                    "description": "Records — список записей для синхронизации.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_alexvictorne_voldepass_internal_domain.RecordDTO"
+                    }
+                }
+            }
+        },
+        "github_com_alexvictorne_voldepass_internal_domain.SyncPushResponse": {
+            "type": "object",
+            "properties": {
+                "results": {
+                    "description": "Results — результат для каждой записи из запроса.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_alexvictorne_voldepass_internal_domain.PushResult"
+                    }
+                }
+            }
+        },
+        "internal_server_rest.challengeRequest": {
+            "type": "object",
+            "properties": {
+                "login": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_server_rest.challengeResponse": {
+            "type": "object",
+            "properties": {
+                "kdf_params": {
+                    "$ref": "#/definitions/github_com_alexvictorne_voldepass_internal_domain.KdfParams"
+                },
+                "kdf_salt": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "server_nonce": {
+                    "type": "string"
+                },
+                "wrapped_data_key": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "internal_server_rest.errorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_server_rest.loginRequest": {
+            "type": "object",
+            "properties": {
+                "auth_msg": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "login": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_server_rest.recordRequest": {
+            "type": "object",
+            "properties": {
+                "base_version": {
+                    "type": "integer"
+                },
+                "ciphertext": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "encrypted_meta": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "meta_nonce": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "nonce": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "type": {
+                    "$ref": "#/definitions/github_com_alexvictorne_voldepass_internal_domain.DataType"
+                }
+            }
+        },
+        "internal_server_rest.refreshRequest": {
+            "type": "object",
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_server_rest.registerRequest": {
+            "type": "object",
+            "properties": {
+                "auth_verifier": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "kdf_params": {
+                    "$ref": "#/definitions/github_com_alexvictorne_voldepass_internal_domain.KdfParams"
+                },
+                "kdf_salt": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "login": {
+                    "type": "string"
+                },
+                "wrapped_data_key": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "internal_server_rest.tokenResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "Access token issued by /login, sent as \"Bearer \u003ctoken\u003e\".",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}

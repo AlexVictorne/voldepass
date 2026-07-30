@@ -8,6 +8,8 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/alexvictorne/voldepass/internal/client/cli"
 )
 
 // version задаётся компилятором через -ldflags "-X main.version=..."
@@ -17,10 +19,13 @@ var version = "dev"
 var buildDate = "unknown"
 
 func main() {
-	// Заглушка до появления cobra-команд в Слое 9.
-	if len(os.Args) > 1 && os.Args[1] == "version" {
-		fmt.Printf("voldepass-client version=%s buildDate=%s\n", version, buildDate)
-		return
+	root, err := cli.NewRootCmd(version, buildDate)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
 	}
-	fmt.Println("voldepass-client: use 'version' subcommand for build info")
+	if err := root.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
 }

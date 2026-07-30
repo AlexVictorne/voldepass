@@ -1,0 +1,630 @@
+basePath: /api/v1
+definitions:
+  github_com_alexvictorne_voldepass_internal_domain.DataType:
+    enum:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    type: integer
+    x-enum-comments:
+      DataTypeBinary: binary
+      DataTypeCard: card
+      DataTypeCredentials: credentials
+      DataTypeOTP: otp
+      DataTypeText: text
+      DataTypeUnknown: unknown
+    x-enum-varnames:
+    - DataTypeUnknown
+    - DataTypeCredentials
+    - DataTypeText
+    - DataTypeBinary
+    - DataTypeCard
+    - DataTypeOTP
+  github_com_alexvictorne_voldepass_internal_domain.KdfParams:
+    properties:
+      keyLen:
+        description: KeyLen — длина выводимого ключа в байтах.
+        type: integer
+      memory:
+        description: Memory — объём памяти в KiB.
+        type: integer
+      threads:
+        description: Threads — число параллельных потоков.
+        type: integer
+      time:
+        description: Time — количество итераций Argon2id.
+        type: integer
+    type: object
+  github_com_alexvictorne_voldepass_internal_domain.PushResult:
+    properties:
+      id:
+        description: ID — идентификатор записи.
+        type: string
+      server_record:
+        allOf:
+        - $ref: '#/definitions/github_com_alexvictorne_voldepass_internal_domain.RecordDTO'
+        description: |-
+          ServerRecord — актуальная версия записи с сервера.
+          Заполняется всегда: при applied — обновлённая запись, при conflict — существующая.
+      status:
+        allOf:
+        - $ref: '#/definitions/github_com_alexvictorne_voldepass_internal_domain.PushStatus'
+        description: Status — applied или conflict.
+    type: object
+  github_com_alexvictorne_voldepass_internal_domain.PushStatus:
+    enum:
+    - applied
+    - conflict
+    type: string
+    x-enum-varnames:
+    - PushStatusApplied
+    - PushStatusConflict
+  github_com_alexvictorne_voldepass_internal_domain.RecordDTO:
+    properties:
+      base_version:
+        description: |-
+          BaseVersion — версия, на основе которой сделано изменение.
+          Используется сервером для optimistic locking при Push.
+          При Pull это поле игнорируется (сервер заполняет Version).
+        type: integer
+      ciphertext:
+        description: Ciphertext — зашифрованный payload.
+        items:
+          type: integer
+        type: array
+      encrypted_meta:
+        description: EncryptedMeta — зашифрованная метаинформация.
+        items:
+          type: integer
+        type: array
+      id:
+        description: ID — уникальный идентификатор записи.
+        type: string
+      is_deleted:
+        description: IsDeleted — true, если запись помечена как удалённая (tombstone).
+        type: boolean
+      meta_nonce:
+        description: MetaNonce — nonce для EncryptedMeta.
+        items:
+          type: integer
+        type: array
+      nonce:
+        description: Nonce — nonce для Ciphertext.
+        items:
+          type: integer
+        type: array
+      type:
+        allOf:
+        - $ref: '#/definitions/github_com_alexvictorne_voldepass_internal_domain.DataType'
+        description: Type — тип данных (открытое поле).
+      updated_at:
+        description: UpdatedAt — время последнего изменения (проставляется сервером).
+        type: string
+      version:
+        description: Version — текущая версия записи на сервере (заполняется сервером).
+        type: integer
+    type: object
+  github_com_alexvictorne_voldepass_internal_domain.SyncPullResponse:
+    properties:
+      records:
+        description: Records — список изменённых записей.
+        items:
+          $ref: '#/definitions/github_com_alexvictorne_voldepass_internal_domain.RecordDTO'
+        type: array
+    type: object
+  github_com_alexvictorne_voldepass_internal_domain.SyncPushRequest:
+    properties:
+      records:
+        description: Records — список записей для синхронизации.
+        items:
+          $ref: '#/definitions/github_com_alexvictorne_voldepass_internal_domain.RecordDTO'
+        type: array
+    type: object
+  github_com_alexvictorne_voldepass_internal_domain.SyncPushResponse:
+    properties:
+      results:
+        description: Results — результат для каждой записи из запроса.
+        items:
+          $ref: '#/definitions/github_com_alexvictorne_voldepass_internal_domain.PushResult'
+        type: array
+    type: object
+  internal_server_rest.challengeRequest:
+    properties:
+      login:
+        type: string
+    type: object
+  internal_server_rest.challengeResponse:
+    properties:
+      kdf_params:
+        $ref: '#/definitions/github_com_alexvictorne_voldepass_internal_domain.KdfParams'
+      kdf_salt:
+        items:
+          type: integer
+        type: array
+      server_nonce:
+        type: string
+      wrapped_data_key:
+        items:
+          type: integer
+        type: array
+    type: object
+  internal_server_rest.errorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  internal_server_rest.loginRequest:
+    properties:
+      auth_msg:
+        items:
+          type: integer
+        type: array
+      login:
+        type: string
+    type: object
+  internal_server_rest.recordRequest:
+    properties:
+      base_version:
+        type: integer
+      ciphertext:
+        items:
+          type: integer
+        type: array
+      encrypted_meta:
+        items:
+          type: integer
+        type: array
+      meta_nonce:
+        items:
+          type: integer
+        type: array
+      nonce:
+        items:
+          type: integer
+        type: array
+      type:
+        $ref: '#/definitions/github_com_alexvictorne_voldepass_internal_domain.DataType'
+    type: object
+  internal_server_rest.refreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
+  internal_server_rest.registerRequest:
+    properties:
+      auth_verifier:
+        items:
+          type: integer
+        type: array
+      kdf_params:
+        $ref: '#/definitions/github_com_alexvictorne_voldepass_internal_domain.KdfParams'
+      kdf_salt:
+        items:
+          type: integer
+        type: array
+      login:
+        type: string
+      wrapped_data_key:
+        items:
+          type: integer
+        type: array
+    type: object
+  internal_server_rest.tokenResponse:
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: |-
+    Zero-knowledge password manager server API. The server only ever handles
+    ciphertext: encryption/decryption happens exclusively on the client.
+  license:
+    name: MIT
+  title: Voldepass API
+  version: "1.0"
+paths:
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Second phase of login. authMsg = HMAC-SHA256(authKey, serverNonce), computed
+        entirely client-side; the master password and authKey never cross the wire.
+      parameters:
+      - description: Login and computed authMsg
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_server_rest.loginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_server_rest.tokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "401":
+          description: invalid authMsg or expired/consumed challenge
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "413":
+          description: request body too large
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "429":
+          description: rate limited
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+      summary: Complete challenge-response login
+      tags:
+      - auth
+  /login/challenge:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        First phase of challenge-response login. Returns a one-time serverNonce
+        (consumed on first use) plus the user's crypto profile needed to derive keys.
+      parameters:
+      - description: Login identifier
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_server_rest.challengeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_server_rest.challengeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "404":
+          description: unknown login
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "413":
+          description: request body too large
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+      summary: Request a login challenge
+      tags:
+      - auth
+  /records:
+    get:
+      description: |-
+        Returns all records owned by the authenticated user, optionally filtered
+        to those changed after the given version.
+      parameters:
+      - description: Return only records with version > since
+        in: query
+        name: since
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_alexvictorne_voldepass_internal_domain.RecordDTO'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: List vault records
+      tags:
+      - records
+    post:
+      consumes:
+      - application/json
+      description: Stores an already-encrypted record. The server never decrypts ciphertext/meta.
+      parameters:
+      - description: Encrypted record
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_server_rest.recordRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_alexvictorne_voldepass_internal_domain.RecordDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "413":
+          description: request body too large
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a vault record
+      tags:
+      - records
+  /records/{id}:
+    delete:
+      description: |-
+        Marks the record as a tombstone (soft delete) so the deletion propagates
+        correctly to other devices during sync.
+      parameters:
+      - description: Record ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: no content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a vault record
+      tags:
+      - records
+    get:
+      parameters:
+      - description: Record ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_alexvictorne_voldepass_internal_domain.RecordDTO'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a vault record
+      tags:
+      - records
+    put:
+      consumes:
+      - application/json
+      description: |-
+        Optimistic locking: base_version must match the current server version,
+        otherwise the request fails with 409 Conflict.
+      parameters:
+      - description: Record ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated encrypted record
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_server_rest.recordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_alexvictorne_voldepass_internal_domain.RecordDTO'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "409":
+          description: base_version is stale
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "413":
+          description: request body too large
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a vault record
+      tags:
+      - records
+  /refresh:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        The old refresh token is invalidated. Reusing an already-rotated token
+        revokes the entire token family (theft detection).
+      parameters:
+      - description: Current refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_server_rest.refreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_server_rest.tokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "401":
+          description: expired, unknown, or reused token
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "413":
+          description: request body too large
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+      summary: Rotate the refresh token and issue a new access token
+      tags:
+      - auth
+  /register:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Creates a new user with a zero-knowledge crypto profile. The server never
+        sees the master password or the derived encryption key.
+      parameters:
+      - description: Registration payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_server_rest.registerRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "409":
+          description: login already taken
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "413":
+          description: request body too large
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+      summary: Register a new user
+      tags:
+      - auth
+  /sync:
+    get:
+      description: |-
+        Returns every record owned by the authenticated user with version > since.
+        The client tracks the max version seen and passes it as `since` on the next call.
+      parameters:
+      - description: Last known version (0 = full pull)
+        in: query
+        name: since
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_alexvictorne_voldepass_internal_domain.SyncPullResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Pull changed records since a version
+      tags:
+      - sync
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Applies each record with optimistic locking on base_version. Requires an
+        Idempotency-Key header; retrying a push with the same key returns the
+        previously computed result instead of re-applying the batch. Records whose
+        base_version is stale come back with status "conflict" and the current
+        server record so the client can re-pull and merge.
+      parameters:
+      - description: Client-generated idempotency key for this batch
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Batch of changed records
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_alexvictorne_voldepass_internal_domain.SyncPushRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_alexvictorne_voldepass_internal_domain.SyncPushResponse'
+        "400":
+          description: missing Idempotency-Key or malformed body
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+        "413":
+          description: request body too large
+          schema:
+            $ref: '#/definitions/internal_server_rest.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Push a batch of locally changed records
+      tags:
+      - sync
+securityDefinitions:
+  BearerAuth:
+    description: Access token issued by /login, sent as "Bearer <token>".
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

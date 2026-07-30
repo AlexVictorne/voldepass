@@ -9,6 +9,7 @@
 ##   gen             — кодогенерация (swag, mockery, stringer)
 ##   lint            — статический анализ
 ##   test            — юнит-тесты + функциональные (-race)
+##   test-slow   	 — медленные TUI-тесты, зависящие от реального времени (tag slow)
 ##   test-integration — интеграционные тесты (требует Docker)
 ##   test-e2e        — smoke / e2e тесты
 ##   test-all        — все уровни
@@ -36,7 +37,7 @@ PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
 DATABASE_URL ?= postgres://voldepass:voldepass@localhost:5432/voldepass?sslmode=disable
 
 .PHONY: all build build-server build-client build-all-platforms \
-        gen lint test test-integration test-e2e test-all cover ci \
+        gen lint test test-slow test-integration test-e2e test-all cover ci \
         up down migrate-up migrate-down clean
 
 ## all: lint + test + покрытие
@@ -65,6 +66,7 @@ build-all-platforms:
 ## gen: кодогенерация (swag, mockery, stringer)
 gen:
 	go generate ./...
+	go run github.com/swaggo/swag/cmd/swag@v1.16.4 init -g cmd/server/main.go -o api/openapi --parseInternal --parseDependency
 
 ## lint: статический анализ (golangci-lint, go vet, govulncheck, go mod verify)
 lint:
@@ -77,6 +79,11 @@ lint:
 test:
 	go test -v -count=1 -race -coverprofile=coverage.out ./internal/... ./cmd/...
 
+## test-slow: медленные TUI-тесты, зависящие от реального времени (tea.Tick),
+## изолированы под build tag slow, чтобы не замедлять обычный `make test`
+test-slow:
+	go test -v -count=1 -tags=slow -race ./internal/client/tui/...
+
 ## test-integration: интеграционные тесты (требует Docker)
 test-integration:
 	go test -v -count=1 -tags=integration -race ./test/integration/...
@@ -86,7 +93,7 @@ test-e2e:
 	go test -v -count=1 -tags=e2e -race ./test/e2e/...
 
 ## test-all: все уровни тестирования
-test-all: lint test test-integration test-e2e
+test-all: lint test test-slow test-integration test-e2e
 	@echo "all tests passed"
 
 ## cover: отчёт о покрытии (требует предварительного запуска make test)
@@ -98,8 +105,8 @@ cover:
 	fi
 	go tool cover -html=coverage.out -o coverage.html
 
-## ci: режим CI — lint + test + test-integration
-ci: lint test cover test-integration
+## ci: режим CI — lint + test + test-slow + test-integration + test-e2e
+ci: lint test cover test-slow test-integration test-e2e
 
 ## up: запустить PostgreSQL через docker-compose
 up:
@@ -114,11 +121,11 @@ down:
 
 ## migrate-up: применить все доступные миграции
 migrate-up:
-	migrate -database "$(DATABASE_URL)" -path ./migrations up
+	migrate -database "$(DATABASE_URL)" -path ./internal/server/storage/postgres/migrations up
 
 ## migrate-down: откатить последнюю миграцию
 migrate-down:
-	migrate -database "$(DATABASE_URL)" -path ./migrations down 1
+	migrate -database "$(DATABASE_URL)" -path ./internal/server/storage/postgres/migrations down 1
 
 ## clean: удалить артефакты сборки и покрытия
 clean:

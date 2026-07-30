@@ -4,32 +4,40 @@ linters:
   default: none
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
     - unused
     - gosec
-    - gofmt
-    - goimports
     - misspell
     - exhaustive
     - bodyclose
     - noctx
     - sqlclosecheck
     - rowserrcheck
+  settings:
+    gosec:
+      excludes:
+        # G304 допустим в конфиге (путь к файлу из конфига)
+        - G304
+    exhaustive:
+      # switch по DataType/tea.KeyType с явным default-веткой намеренно
+      # покрывает "всё остальное" (в т.ч. будущие варианты), а не перечисляет
+      # каждый case вручную — считаем такой switch исчерпывающим.
+      default-signifies-exhaustive: true
+  exclusions:
+    rules:
+      - path: "_test\\.go"
+        linters:
+          - gosec
+          - errcheck
+          - noctx
 
-linters-settings:
-  gosec:
-    excludes:
-      # G304 допустим в конфиге (путь к файлу из конфига)
-      - G304
-  goimports:
-    local-prefixes: github.com/alexvictorne/voldepass
-
-issues:
-  exclude-rules:
-    - path: "_test\\.go"
-      linters:
-        - gosec
-        - errcheck
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/alexvictorne/voldepass
